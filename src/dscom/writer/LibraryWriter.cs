@@ -97,6 +97,11 @@ internal sealed class LibraryWriter : BaseWriter
 
         foreach (var type in types)
         {
+            if (type == null || type.Namespace is null)
+            {
+                continue;
+            }
+
             var comVisibleAttribute = type.GetCustomAttribute<ComVisibleAttribute>();
 
             if (typesAreVisibleForComByDefault && comVisibleAttribute != null && !comVisibleAttribute.Value)
@@ -109,13 +114,7 @@ internal sealed class LibraryWriter : BaseWriter
                 continue;
             }
 
-
             if (!type.IsPublic && !type.IsNestedPublic)
-            {
-                continue;
-            }
-
-            if (type.Namespace is null)
             {
                 continue;
             }
