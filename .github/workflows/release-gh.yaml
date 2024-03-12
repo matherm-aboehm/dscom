@@ -1,0 +1,77 @@
+name: Release for GitHub
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*.*.*"
+jobs:
+  build:
+    runs-on: windows-2022
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          global-json-file: global.json
+
+      - name: Get .net version
+        run: dotnet --version
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release
+
+      - name: Test (Release)
+        run: dotnet test -c Release --no-build --verbosity normal
+
+      - name: Nuget pack library
+        run: dotnet pack -c Release src/dscom/dscom.csproj
+
+      - name: Release library
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: src/dscom/bin/Release/*.?nupkg
+
+      - name: Nuget pack tool
+        run: dotnet pack -c Release src/dscom.client/dscom.client.csproj
+
+      - name: Release tool
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: src/dscom.client/bin/Release/*.?nupkg
+
+      - name: Nuget pack build tools
+        run: dotnet pack -c Release src/dscom.build/dscom.build.csproj
+
+      - name: Release build tools
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: src/dscom.build/bin/Release/*.?nupkg
+
+      - name: Publish 32Bit binary
+        run: dotnet publish .\src\dscom.client\dscom.client.csproj --no-self-contained -c Release -r win-x86 -f net6.0 /p:PublishSingleFile=true; copy src\dscom.client\bin\Release\net6.0\win-x86\publish\dscom.exe src\dscom.client\bin\Release\net6.0\win-x86\publish\dscom32.exe
+
+      - name: Release 32Bit binary
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: src/dscom.client/bin/Release/net6.0/win-x86/publish/dscom32.exe
+
+      - name: Publish 64Bit binary
+        run: dotnet publish .\src\dscom.client\dscom.client.csproj --no-self-contained -c Release -r win-x64 -f net6.0 /p:PublishSingleFile=true
+
+      - name: Release 64Bit binary
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: src/dscom.client/bin/Release/net6.0/win-x64/publish/dscom.exe
