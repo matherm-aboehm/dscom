@@ -15,6 +15,7 @@
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -28,7 +29,10 @@ namespace dSPACE.Runtime.InteropServices;
 /// </summary>
 [SuppressMessage("Microsoft.Performance", "CA1812:AvoidUninstantiatedInternalClasses", Justification = "Compatibility to the mscorelib TypeLibConverter class")]
 [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic", Justification = "Compatibility to the mscorelib TypeLibConverter class")]
-public class TypeLibConverter
+[Guid("F1C3BF79-C3E4-11d3-88E7-00902754C43A")]
+[ClassInterface(ClassInterfaceType.None)]
+[ComVisible(true)]
+public class TypeLibConverter : ITypeLibConverter
 {
     /// <summary>Converts an assembly to a COM type library.</summary>
     /// <param name="assembly">The assembly to convert.</param>
@@ -51,6 +55,42 @@ public class TypeLibConverter
     }
 
     /// <summary>Converts an assembly to a COM type library.</summary>
+    /// <returns>An object that implements the <see langword="ITypeLib" /> interface.</returns>
+    /// <param name="assembly">The assembly to convert.</param>
+    /// <param name="typeLibName">The file name of the resulting type library.</param>
+    /// <param name="flags">A <see cref="T:dSPACE.Runtime.InteropServices.TypeLibExporterFlags" /> value indicating any special settings.</param>
+    /// <param name="notifySink">The <see cref="T:dSPACE.Runtime.InteropServices.ITypeLibExporterNotifySink" /> interface implemented by the caller.</param>
+    public object? ConvertAssemblyToTypeLib(Assembly assembly, string typeLibName, TypeLibExporterFlags flags, ITypeLibExporterNotifySink? notifySink)
+    {
+        var options = new TypeLibConverterSettings
+        {
+            Out = typeLibName,
+        };
+
+        if ((flags & TypeLibExporterFlags.ExportAs32Bit) != 0)
+        {
+            options.Create64BitTlb = false;
+        }
+        else if ((flags & TypeLibExporterFlags.ExportAs64Bit) != 0)
+        {
+            options.Create64BitTlb = true;
+        }
+
+        if (!string.IsNullOrEmpty(typeLibName))
+        {
+            var typeLibDir = Path.GetDirectoryName(typeLibName);
+            if (string.IsNullOrEmpty(typeLibDir))
+            {
+                typeLibDir = Environment.CurrentDirectory;
+            }
+
+            options.TLBRefpath = new[] { typeLibDir };
+        }
+
+        return ConvertAssemblyToTypeLib(assembly, options, notifySink);
+    }
+
+    /// <summary>Converts an assembly to a COM type library.</summary>
     /// <param name="assembly">The assembly to convert.</param>
     /// <param name="settings">The <see cref="T:dSPACE.Runtime.InteropServices.TypeLibConverterSettings" /> to configure the converter.</param>
     /// <param name="notifySink">The <see cref="T:dSPACE.Runtime.InteropServices.ITypeLibExporterNotifySink" /> interface implemented by the caller.</param>
@@ -59,11 +99,97 @@ public class TypeLibConverter
     {
         CheckPlatform();
 
-        OleAut32.CreateTypeLib2(Environment.Is64BitProcess ? SYSKIND.SYS_WIN64 : SYSKIND.SYS_WIN32, settings.Out!, out var typelib).ThrowIfFailed("Failed to create type library.");
+        SYSKIND syskind = (settings.Create64BitTlb ?? Environment.Is64BitProcess) ?
+            SYSKIND.SYS_WIN64 : SYSKIND.SYS_WIN32;
+
+        OleAut32.CreateTypeLib2(syskind, settings.Out!, out var typelib).ThrowIfFailed("Failed to create type library.");
         using var writer = new LibraryWriter(assembly, new WriterContext(settings, typelib, notifySink));
         writer.Create();
 
         return typelib;
+    }
+
+#if NET48
+    private sealed class WrappingTypeLibImporterSink : System.Runtime.InteropServices.ITypeLibImporterNotifySink
+    {
+        private ITypeLibImporterNotifySink _sink;
+        public WrappingTypeLibImporterSink(ITypeLibImporterNotifySink sink)
+        {
+            _sink = sink;
+        }
+        public void ReportEvent(System.Runtime.InteropServices.ImporterEventKind eventKind, int eventCode, string eventMsg)
+            => _sink.ReportEvent((ImporterEventKind)eventKind, eventCode, eventMsg);
+
+        public Assembly ResolveRef(object typeLib) => _sink.ResolveRef(typeLib);
+    }
+#endif
+
+    /// <summary>Converts a COM type library to an assembly.</summary>
+    /// <returns>An <see cref="T:System.Reflection.Emit.AssemblyBuilder" /> object containing the converted type library.</returns>
+    /// <param name="typeLib">The object that implements the <see langword="ITypeLib" /> interface.</param>
+    /// <param name="asmFileName">The file name of the resulting assembly.</param>
+    /// <param name="flags">A <see cref="T:dSPACE.Runtime.InteropServices.TypeLibImporterFlags" /> value indicating any special settings.</param>
+    /// <param name="notifySink"><see cref="T:dSPACE.Runtime.InteropServices.ITypeLibImporterNotifySink" /> interface implemented by the caller.</param>
+    /// <param name="publicKey">A <see langword="byte" /> array containing the public key.</param>
+    /// <param name="keyPair">A <see cref="T:System.Reflection.StrongNameKeyPair" /> object containing the public and private cryptographic key pair.</param>
+    /// <param name="asmNamespace">The namespace for the resulting assembly.</param>
+    /// <param name="asmVersion">The version of the resulting assembly. If <see langword="null" />, the version of the type library is used.</param>
+#if !NET48
+    [Obsolete(nameof(ConvertTypeLibToAssembly) + "is not supported yet and throws PlatformNotSupportedException.")]
+#endif
+    public AssemblyBuilder? ConvertTypeLibToAssembly([MarshalAs(UnmanagedType.Interface)] object typeLib, string asmFileName, TypeLibImporterFlags flags, ITypeLibImporterNotifySink? notifySink, byte[]? publicKey, StrongNameKeyPair? keyPair, string? asmNamespace, Version? asmVersion)
+    {
+#if NET48
+        var sinkwrapper = notifySink != null ? new WrappingTypeLibImporterSink(notifySink) : null;
+        return new System.Runtime.InteropServices.TypeLibConverter().ConvertTypeLibToAssembly(
+            typeLib, asmFileName, (System.Runtime.InteropServices.TypeLibImporterFlags)flags, sinkwrapper, publicKey, keyPair, asmNamespace, asmVersion);
+#else
+        throw new PlatformNotSupportedException();
+#endif
+    }
+
+    /// <summary>Gets the name and code base of a primary interop assembly for a specified type library.</summary>
+    /// <returns><see langword="true" /> if the primary interop assembly was found in the registry; otherwise <see langword="false" />.</returns>
+    /// <param name="g">The GUID of the type library.</param>
+    /// <param name="major">The major version number of the type library.</param>
+    /// <param name="minor">The minor version number of the type library.</param>
+    /// <param name="lcid">The LCID of the type library.</param>
+    /// <param name="asmName">On successful return, the name of the primary interop assembly associated with <paramref name="g" />.</param>
+    /// <param name="asmCodeBase">On successful return, the code base of the primary interop assembly associated with <paramref name="g" />.</param>
+#if !NET48
+    [Obsolete(nameof(GetPrimaryInteropAssembly) + "is not supported yet and throws PlatformNotSupportedException.")]
+#endif
+    public bool GetPrimaryInteropAssembly(Guid g, int major, int minor, int lcid, out string asmName, out string asmCodeBase)
+    {
+#if NET48
+        return new System.Runtime.InteropServices.TypeLibConverter().GetPrimaryInteropAssembly(
+            g, major, minor, lcid, out asmName, out asmCodeBase);
+#else
+        throw new PlatformNotSupportedException();
+#endif
+    }
+
+    /// <summary>Converts a COM type library to an assembly.</summary>
+    /// <returns>An <see cref="T:System.Reflection.Emit.AssemblyBuilder" /> object containing the converted type library.</returns>
+    /// <param name="typeLib">The object that implements the <see langword="ITypeLib" /> interface.</param>
+    /// <param name="asmFileName">The file name of the resulting assembly.</param>
+    /// <param name="flags">A <see cref="T:dSPACE.Runtime.InteropServices.TypeLibImporterFlags" /> value indicating any special settings.</param>
+    /// <param name="notifySink"><see cref="T:dSPACE.Runtime.InteropServices.ITypeLibImporterNotifySink" /> interface implemented by the caller.</param>
+    /// <param name="publicKey">A <see langword="byte" /> array containing the public key.</param>
+    /// <param name="keyPair">A <see cref="T:System.Reflection.StrongNameKeyPair" /> object containing the public and private cryptographic key pair.</param>
+    /// <param name="unsafeInterfaces">If <see langword="true" />, the interfaces require link time checks for <see cref="F:System.Security.Permissions.SecurityPermissionFlag.UnmanagedCode" /> permission. If <see langword="false" />, the interfaces require run time checks that require a stack walk and are more expensive, but help provide greater protection.</param>
+#if !NET48
+    [Obsolete(nameof(ConvertTypeLibToAssembly) + "is not supported yet and throws PlatformNotSupportedException.")]
+#endif
+    public AssemblyBuilder? ConvertTypeLibToAssembly([MarshalAs(UnmanagedType.Interface)] object typeLib, string asmFileName, int flags, ITypeLibImporterNotifySink? notifySink, byte[]? publicKey, StrongNameKeyPair? keyPair, bool unsafeInterfaces = false)
+    {
+#if NET48
+        var sinkwrapper = notifySink != null ? new WrappingTypeLibImporterSink(notifySink) : null;
+        return new System.Runtime.InteropServices.TypeLibConverter().ConvertTypeLibToAssembly(
+            typeLib, asmFileName, flags, sinkwrapper, publicKey, keyPair, unsafeInterfaces);
+#else
+        throw new PlatformNotSupportedException();
+#endif
     }
 
     /// <summary>
