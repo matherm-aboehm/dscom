@@ -195,11 +195,12 @@ internal sealed class ParameterWriter : ElemDescBasedWriter
 
                 var type = ParameterInfo.ParameterType.GetUnderlayingType();
                 var notSpecialHandledValueType = !type.IsSpecialHandledValueType();
+                var notSpecialHandledClassType = !type.IsSpecialHandledClass();
 
                 // If type is interface, enum, class, or struct...
                 if (type.IsInterface ||
                     type.IsEnum ||
-                    (type.IsClass && notSpecialHandledValueType) ||
+                    (type.IsClass && notSpecialHandledClassType) ||
                     (type.IsValueType && !type.IsPrimitive && TypeProvider.MarshalAsAttribute == null && notSpecialHandledValueType))
                 {
                     return Context.TypeInfoResolver.ResolveTypeInfo(type) != null;

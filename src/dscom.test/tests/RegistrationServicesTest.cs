@@ -187,6 +187,18 @@ public class RegistrationServicesTest : BaseTest
     }
 
     [Fact]
+    public void RegistrationServices_Should_Invoke_ComRegisterMethod_With_String_Param()
+    {
+        RegistrationServices.CustomRegistrationFunction(typeof(StringRegisterFunctionClass));
+        RegistrationServices.CustomUnregistrationFunction(typeof(StringRegisterFunctionClass));
+
+        var regPath = StringRegisterFunctionClass.RegisteredRegPath;
+        Assert.NotNull(regPath);
+        Assert.NotEmpty(regPath);
+        Assert.Equal(regPath, StringRegisterFunctionClass.UnregisteredRegPath);
+    }
+
+    [Fact]
     public void RegistrationServices_Should_Throw_On_Instance_ComRegisterMethod()
     {
         Assert.Throws<InvalidOperationException>(
@@ -289,6 +301,25 @@ public class SingleRegisterFunctionClass
     public static void ComUnregister(Type type)
     {
         UnregisteredType = type;
+    }
+}
+
+public class StringRegisterFunctionClass
+{
+    public static string? RegisteredRegPath { get; private set; }
+
+    public static string? UnregisteredRegPath { get; private set; }
+
+    [ComRegisterFunction]
+    public static void ComRegister(string regPath)
+    {
+        RegisteredRegPath = regPath;
+    }
+
+    [ComUnregisterFunction]
+    public static void ComUnregister(string regPath)
+    {
+        UnregisteredRegPath = regPath;
     }
 }
 

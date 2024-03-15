@@ -198,7 +198,7 @@ internal static class Extensions
     internal static Type GetUnderlayingType(this Type type)
     {
         var returnType = type;
-        while (returnType!.IsByRef || returnType!.IsArray)
+        while (returnType!.IsByRef || returnType!.IsArray || returnType!.IsPointer)
         {
             returnType = returnType.GetElementType();
         }
