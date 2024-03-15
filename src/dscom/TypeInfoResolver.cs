@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
@@ -136,9 +137,10 @@ internal sealed class TypeInfoResolver : ITypeLibCache
     public ITypeInfo? ResolveTypeInfo(Type type)
     {
         // special handling for non com visible types and
-        // build-in-times. Otherwise it will try to load a typelib for string or object
-        if (type.IsGenericType || type.IsSpecialHandledClass())
+        // build-in-types. Otherwise it will try to load a typelib for string or object
+        if (type.IsSpecialHandledClass())
         {
+            Debug.Assert(false, "ResolveTypeInfo should not be called for string or object.");
             return null;
         }
 
@@ -149,11 +151,7 @@ internal sealed class TypeInfoResolver : ITypeLibCache
         }
 
         ITypeInfo? retval;
-        if (type.FullName == "System.Delegate")
-        {
-            retval = null;
-        }
-        else if (type.FullName == "System.Collections.IEnumerator")
+        if (type.FullName == "System.Collections.IEnumerator")
         {
             retval = ResolveTypeInfo(new Guid(Guids.IID_IEnumVARIANT));
         }
@@ -180,7 +178,7 @@ internal sealed class TypeInfoResolver : ITypeLibCache
         }
         else if (type.IsClass)
         {
-            retval = ResolveTypeInfo(type, MarshalExtension.GetClassInterfaceGuidForType(type));
+            retval = ResolveTypeInfo(type, MarshalExtension.GenerateGuidForType(type));
         }
         else
         {

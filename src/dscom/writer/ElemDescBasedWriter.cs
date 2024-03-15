@@ -69,7 +69,7 @@ internal class ElemDescBasedWriter : BaseWriter
     public override void Create()
     {
         //calculate effective type
-        var lowLevel = TypeProvider.GetVariantType(Type.IsByRef ? Type.GetElementType()! : Type, out var highLevel, false);
+        var lowLevel = TypeProvider.GetVariantType(Type.IsByRef || Type.IsPointer ? Type.GetElementType()! : Type, out var highLevel, false);
         if (lowLevel != VarEnum.VT_EMPTY)
         {
             VarEnum? midLevel = null;
@@ -79,6 +79,16 @@ internal class ElemDescBasedWriter : BaseWriter
                 var arrayType = Type.IsByRef ? Type.GetElementType()!.GetElementType()! : Type.GetElementType()!;
                 highLevel = lowLevel;
                 lowLevel = TypeProvider.GetVariantType(arrayType, out midLevel, true);
+            }
+            else if (lowLevel is VarEnum.VT_PTR && (Type.IsByRef || Type.IsPointer) && Type.GetElementType()!.IsPointer)
+            {
+                var underlayingType = Type.GetElementType()!.GetElementType()!;
+                highLevel = VarEnum.VT_PTR;
+                lowLevel = TypeProvider.GetVariantType(underlayingType, out midLevel, false);
+                if (!Type.IsByRef)
+                {
+                    midLevel ??= VarEnum.VT_PTR;
+                }
             }
             if (lowLevel != VarEnum.VT_EMPTY)
             {
@@ -93,7 +103,7 @@ internal class ElemDescBasedWriter : BaseWriter
                 }
                 else
                 {
-                    _elementDescription.tdesc = GetTypeDescription(lowLevel, highLevel);
+                    _elementDescription.tdesc = GetTypeDescription(lowLevel, highLevel ?? (Type.IsPointer ? VarEnum.VT_PTR : null));
                 }
             }
             else
@@ -146,19 +156,15 @@ internal class ElemDescBasedWriter : BaseWriter
                 break;
             case VarEnum.VT_USERDEFINED:
                 effectiveType = Type.GetUnderlayingType();
-                effectiveTypeInfo = Context.TypeInfoResolver.ResolveTypeInfo(effectiveType);
+                // Try to find the default interface first
+                effectiveTypeInfo = Context.TypeInfoResolver.ResolveDefaultCoClassInterface(effectiveType) ??
+                    Context.TypeInfoResolver.ResolveTypeInfo(effectiveType);
 
                 if ((Type.IsInterface || Type.IsClass) && effectiveTypeInfo == null)
                 {
-                    // Try to find the default interface
-                    var defaultInterface = Context.TypeInfoResolver.ResolveDefaultCoClassInterface(effectiveType);
-                    if (defaultInterface == null)
-                    {
-                        //IUnknown substitution
-                        elementVarDesc = VarEnum.VT_UNKNOWN;
-                        effectiveType = typeof(IUnknown);
-                    }
-                    effectiveTypeInfo = defaultInterface;
+                    //IUnknown substitution
+                    elementVarDesc = VarEnum.VT_UNKNOWN;
+                    effectiveType = typeof(IUnknown);
                 }
                 break;
         }
