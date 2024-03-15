@@ -59,4 +59,9 @@ public class TypeLibConverterSettings
     /// </summary>
     public string[] Names { get; set; } = Array.Empty<string>();
 
+    /// <summary>
+    /// Gets or sets the target platform bitness.
+    /// </summary>
+    public bool? Create64BitTlb { get; set; }
+
 }

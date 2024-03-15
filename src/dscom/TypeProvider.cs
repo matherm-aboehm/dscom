@@ -23,6 +23,7 @@ internal sealed class TypeProvider
     {
         Context = context;
         IsMethod = isMethod;
+        Is64BitContext = context.Options.Create64BitTlb ?? Environment.Is64BitProcess;
         if (customAttributeProvider != null)
         {
             MarshalAsAttribute = customAttributeProvider.GetCustomAttributes(typeof(MarshalAsAttribute), true).FirstOrDefault() as MarshalAsAttribute;
@@ -39,6 +40,11 @@ internal sealed class TypeProvider
     /// Gets or sets a value indicating whether the type should be used for a property or method or, in the if the value is false, for a field in a struct.
     /// </summary>
     public bool IsMethod { get; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the context option to produce a 64 bit type library was set.
+    /// </summary>
+    public bool Is64BitContext { get; } = true;
 
     public VarEnum GetVariantType(Type type, out VarEnum? parentLevel, bool isSafeArraySubType = false)
     {
@@ -259,7 +265,7 @@ internal sealed class TypeProvider
             case "System.Delegate":
                 return VarEnum.VT_UNKNOWN;
             case "System.IntPtr":
-                return Environment.Is64BitProcess ? VarEnum.VT_I8 : VarEnum.VT_I4;
+                return Is64BitContext ? VarEnum.VT_I8 : VarEnum.VT_I4;
             case "System.Drawing.Color":
                 return VarEnum.VT_USERDEFINED;
             case "System.Guid":

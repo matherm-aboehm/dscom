@@ -35,7 +35,12 @@ internal static class MarshalExtension
     internal static Guid GetClassInterfaceGuidForType(Type type)
     {
         var bytes = Encoding.Default.GetBytes($"{type.Namespace}._{type.Name}");
+#if !NETSTANDARD2_0
         var bytes2 = Marshal.GenerateGuidForType(type).ToByteArray();
+#else
+        var an = type.Assembly.GetName();
+        var bytes2 = Encoding.Default.GetBytes(an.FullName);
+#endif
 
         var rv = new byte[bytes.Length + bytes2.Length];
 
@@ -45,6 +50,23 @@ internal static class MarshalExtension
         using var md5 = MD5.Create();
         var hash = md5.ComputeHash(rv);
         return new Guid(hash);
+    }
+
+    internal static Guid GenerateGuidForType(Type type)
+    {
+        if (type.GUID != Guid.Empty)
+        {
+            return type.GUID;
+        }
+#if !NETSTANDARD2_0
+        return Marshal.GenerateGuidForType(type);
+#else
+        var rv = Encoding.Default.GetBytes(type.AssemblyQualifiedName);
+
+        using var md5 = MD5.Create();
+        var hash = md5.ComputeHash(rv);
+        return new Guid(hash);
+#endif
     }
 
     internal static Guid GetTypeLibGuidForAssembly(Assembly assembly)
@@ -71,6 +93,53 @@ internal static class MarshalExtension
             guid = new Guid(hash);
         }
         return guid;
+    }
+
+    internal static bool IsTypeVisibleFromCom(Type type)
+    {
+#if !NETSTANDARD2_0
+        return Marshal.IsTypeVisibleFromCom(type);
+#else
+        if (!type.IsPublic)
+        {
+            return false;
+        }
+        var comVisibleAttribute = type.GetCustomAttribute<ComVisibleAttribute>(false) ??
+            type.Assembly.GetCustomAttribute<ComVisibleAttribute>();
+
+        return comVisibleAttribute?.Value ?? true;
+#endif
+    }
+
+    internal static string GenerateProgIdForType(Type type)
+    {
+        if (type is null)
+        {
+            throw new ArgumentNullException(nameof(type));
+        }
+        if (type.IsImport)
+        {
+            throw new ArgumentException("The type must not be ComImport.", nameof(type));
+        }
+        if (type.IsGenericType)
+        {
+            throw new ArgumentException("The type needs to be non-generic.", nameof(type));
+        }
+        if (!RegistrationServices.TypeRequiresRegistrationHelper(type))
+        {
+            throw new ArgumentException("The type must be com creatable.", nameof(type));
+        }
+        IList<CustomAttributeData> customAttributes = CustomAttributeData.GetCustomAttributes(type);
+        for (int i = 0; i < customAttributes.Count; i++)
+        {
+            if (customAttributes[i].Constructor.DeclaringType == typeof(ProgIdAttribute))
+            {
+                IList<CustomAttributeTypedArgument> constructorArguments = customAttributes[i].ConstructorArguments;
+                string progId = (string?)constructorArguments[0].Value ?? string.Empty;
+                return progId;
+            }
+        }
+        return type.FullName!;
     }
 
     private static byte[] StructureToByteArray(object obj)

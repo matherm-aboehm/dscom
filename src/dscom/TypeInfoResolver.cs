@@ -102,7 +102,7 @@ internal sealed class TypeInfoResolver : ITypeLibCache
         }
         else if (type.IsClass)
         {
-            retval = ResolveTypeInfo(MarshalExtension.GetClassInterfaceGuidForType(type));
+            retval = ResolveTypeInfo(MarshalExtension.GenerateGuidForType(type));
         }
         else
         {

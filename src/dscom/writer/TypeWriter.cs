@@ -117,6 +117,6 @@ internal abstract class TypeWriter : BaseWriter
 
     protected virtual Guid GetTypeGuid()
     {
-        return SourceType.GUID != Guid.Empty ? SourceType.GUID : System.Runtime.InteropServices.Marshal.GenerateGuidForType(SourceType);
+        return MarshalExtension.GenerateGuidForType(SourceType);
     }
 }

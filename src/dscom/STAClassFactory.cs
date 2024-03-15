@@ -21,7 +21,12 @@ using System.Runtime.InteropServices;
 namespace dSPACE.Runtime.InteropServices;
 
 [ComVisible(true)]
+#if !NETSTANDARD2_0
 internal sealed class STAClassFactory<T> : StandardOleMarshalObject, IClassFactory where T : new()
+#else
+//TODO: maybe use a custom implementation of StandardOleMarshalObject here?
+internal sealed class STAClassFactory<T> : MarshalByRefObject, IClassFactory where T : new()
+#endif
 {
     public void CreateInstance(
         [MarshalAs(UnmanagedType.Interface)] object instancePointer,
