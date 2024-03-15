@@ -1,8 +1,8 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <AssemblyName>dSPACE.Runtime.InteropServices</AssemblyName>
-    <TargetFrameworks>net8.0;net6.0;net48</TargetFrameworks>
+    <TargetFrameworks>net8.0;net6.0;netcoreapp3.1;netstandard2.0;net48</TargetFrameworks>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <Platforms>AnyCPU;x86</Platforms>
     <RootNamespace>dSPACE.Runtime.InteropServices</RootNamespace>
@@ -30,6 +30,16 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>dscom.snk</AssemblyOriginatorKeyFile>
+    <Deterministic>true</Deterministic>
+    <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <ProduceOnlyReferenceAssembly>true</ProduceOnlyReferenceAssembly>
+    <!-- Roslyn crashes if /refonly and EnforceCodeStyleInBuild is used at the same time:
+        https://github.com/dotnet/roslyn/issues/51660 -->
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
   </PropertyGroup>
 
   <ItemGroup>
@@ -41,13 +51,20 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.Win32.Registry" Version="4.*" Condition="'$(TargetFramework)' == 'netcoreapp3.1' or '$(TargetFramework)' == 'netstandard2.0'" />
+    <PackageReference Include="System.Reflection.Emit" Version="4.*" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
+    <PackageReference Include="System.Runtime" Version="4.*" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
+    <PackageReference Include="System.Runtime.InteropServices" Version="4.*" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
     <None Include="packageIcon.png" Pack="true" PackagePath="\" />
     <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Update="DsComPackaging.targets" Pack="false" />
   </ItemGroup>
 
   <ItemGroup>
     <Compile Include="..\dscom.common\**" />
   </ItemGroup>
+
+  <Import Project="$(MsBuildThisFileDirectory)DsComPackaging.targets" />
 
 </Project>

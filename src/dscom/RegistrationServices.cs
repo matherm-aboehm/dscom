@@ -27,7 +27,10 @@ namespace dSPACE.Runtime.InteropServices;
 /// </summary>
 [SuppressMessage("Microsoft.Performance", "CA1812:AvoidUninstantiatedInternalClasses", Justification = "Compatibility to the mscorelib TypeLibConverter class")]
 [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic", Justification = "Compatibility to the mscorelib TypeLibConverter class")]
-public class RegistrationServices
+[Guid("475E398F-8AFA-43a7-A3BE-F4EF8D6787C9")]
+[ClassInterface(ClassInterfaceType.None)]
+[ComVisible(true)]
+public class RegistrationServices : IRegistrationServices
 {
     /// <summary>
     /// When registering a managed type to the classes using the
@@ -92,6 +95,7 @@ public class RegistrationServices
         public const string RuntimeVersion = nameof(RuntimeVersion);
         public const string CodeBase = nameof(CodeBase);
         public const string CLSID = nameof(CLSID);
+        public const string TypeLib = nameof(TypeLib);
         public const string ThreadingModel = nameof(ThreadingModel);
         public const string InprocServer32 = nameof(InprocServer32);
         public const string ProgId = nameof(ProgId);
@@ -104,6 +108,9 @@ public class RegistrationServices
 
         public const string ImplementedCategories = $"{Implemented} {Categories}";
         public const string ComponentCategories = $"{Component} {Categories}";
+
+        public const string PrimaryInteropAssemblyName = nameof(PrimaryInteropAssemblyName);
+        public const string PrimaryInteropAssemblyCodeBase = nameof(PrimaryInteropAssemblyCodeBase);
     }
 
     private static class RegistryValues
@@ -112,6 +119,25 @@ public class RegistrationServices
 
         public const string ThreadingModel = Both;
         public const string ManagedCategoryDescription = ".NET Category";
+        public const string MsCorEEFileName = "mscoree.dll";
+    }
+
+    private static Guid _managedCategoryGuid = new(RegistryKeys.ManagedCategoryGuid);
+
+    #region IRegistrationServices
+
+    public virtual bool RegisterAssembly(Assembly assembly, AssemblyRegistrationFlags flags)
+    {
+        return RegisterAssembly(assembly, (flags & AssemblyRegistrationFlags.SetCodeBase) != 0, ManagedCategoryAction.Create);
+    }
+
+    public virtual Type[] GetRegistrableTypesInAssembly(Assembly assembly)
+    {
+        return (Type[])GetComRegistratableTypes(assembly);
+    }
+    public virtual string GetProgIdForType(Type type)
+    {
+        return MarshalExtension.GenerateProgIdForType(type);
     }
 
     /// <summary>Registers the specified type with COM using the specified GUID.</summary>
@@ -119,7 +145,7 @@ public class RegistrationServices
     /// <param name="g">The <see cref="T:System.Guid" /> used to register the specified type.</param>
     /// <exception cref="T:System.ArgumentException">The <paramref name="type" /> parameter is <see langword="null" />.</exception>
     /// <exception cref="T:System.ArgumentNullException">The <paramref name="type" /> parameter cannot be created.</exception>
-    public void RegisterTypeForComClients(Type type, ref Guid g)
+    public virtual void RegisterTypeForComClients(Type type, ref Guid g)
     {
         var genericClassFactory = Thread.CurrentThread.GetApartmentState() == ApartmentState.STA ? typeof(STAClassFactory<>) : typeof(ClassFactory<>);
         Type[] typeArgs = { type };
@@ -133,6 +159,23 @@ public class RegistrationServices
             Marshal.ThrowExceptionForHR(hr);
         }
     }
+
+    public virtual Guid GetManagedCategoryGuid()
+    {
+        return _managedCategoryGuid;
+    }
+
+    public virtual bool TypeRequiresRegistration(Type type)
+    {
+        return TypeRequiresRegistrationHelper(type);
+    }
+
+    public virtual bool TypeRepresentsComType(Type type)
+    {
+        return IsComType(type);
+    }
+
+    #endregion
 
     /// <summary>Registers the specified type with COM using the specified execution context and connection type.</summary>
     /// <param name="type">The <see cref="T:System.Type" /> object to register for use from COM.</param>
@@ -170,6 +213,28 @@ public class RegistrationServices
         {
             Marshal.ThrowExceptionForHR(hr);
         }
+    }
+
+    internal static bool TypeRequiresRegistrationHelper(Type type)
+    {
+        // If the type is not a class or a value class, then it does not get registered.
+        if (!type.IsClass && !type.IsValueType)
+        {
+            return false;
+        }
+        // If the type is abstract then it does not get registered.
+        if (type.IsAbstract)
+        {
+            return false;
+        }
+        // If the does not have a public default constructor then is not creatable from COM so 
+        // it does not require registration unless it is a value class.
+        if (!type.IsValueType && type.GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, Array.Empty<Type>(), null) == null)
+        {
+            return false;
+        }
+        // All other conditions are met so check to see if the type is visible from COM.
+        return MarshalExtension.IsTypeVisibleFromCom(type);
     }
 
     /// <summary>
@@ -225,12 +290,18 @@ public class RegistrationServices
                 RegisterManagedType(type, fullName, assemblyVersion, codeBase, runtimeVersion, preferredAction);
             }
 
-            // Skip: CustomRegistrationFunction
+            CallUserDefinedRegistrationMethod(type, true);
         }
 
-        // Skip: PIA Regitration
+        // If this assembly has the PIA attribute, then register it as a PIA.
+        var aPIAAttrs = assembly.GetCustomAttributes<PrimaryInteropAssemblyAttribute>().ToArray();
+        int NumPIAAttrs = aPIAAttrs.Length;
+        for (int cPIAAttrs = 0; cPIAAttrs < NumPIAAttrs; cPIAAttrs++)
+        {
+            RegisterPrimaryInteropAssembly(assembly, codeBase, aPIAAttrs[cPIAAttrs]);
+        }
 
-        return typesToRegister.Count > 0;
+        return typesToRegister.Count > 0 || NumPIAAttrs > 0;
     }
 
     /// <summary>
@@ -238,7 +309,7 @@ public class RegistrationServices
     /// </summary>
     /// <param name="assembly">The assembly to unregister.</param>
     /// <returns><c>true</c>, if all types from the registry have been unregistered.</returns>
-    public bool UnregisterAssembly(Assembly assembly)
+    public virtual bool UnregisterAssembly(Assembly assembly)
     {
         if (assembly is null)
         {
@@ -259,14 +330,21 @@ public class RegistrationServices
 
         foreach (var type in typesToUnregister)
         {
-            // Skip: Custom unregister function
-            if (IsComRegistratableValueType(type) && !UnregisterValueType(type, assemblyVersion))
+            CallUserDefinedRegistrationMethod(type, false);
+
+            if (IsComRegistratableValueType(type))
             {
-                typesNotRemoved.Add(type);
+                if (!UnregisterValueType(type, assemblyVersion))
+                {
+                    typesNotRemoved.Add(type);
+                }
             }
-            else if (IsComType(type) && !UnregisterImportedComType(type, assemblyVersion))
+            else if (IsComType(type))
             {
-                typesNotRemoved.Add(type);
+                if (!UnregisterImportedComType(type, assemblyVersion))
+                {
+                    typesNotRemoved.Add(type);
+                }
             }
             else if (!UnregisterManagedType(type, assemblyVersion))
             {
@@ -274,45 +352,28 @@ public class RegistrationServices
             }
         }
 
-        // Skip: PIA
+        // If this assembly has the PIA attribute, then unregister it as a PIA.
+        var aPIAAttrs = assembly.GetCustomAttributes<PrimaryInteropAssemblyAttribute>().ToArray();
+        int NumPIAAttrs = aPIAAttrs.Length;
+        if (typesNotRemoved.Count == 0)
+        {
+            for (int cPIAAttrs = 0; cPIAAttrs < NumPIAAttrs; cPIAAttrs++)
+            {
+                UnregisterPrimaryInteropAssembly(assembly, aPIAAttrs[cPIAAttrs]);
+            }
+        }
 
         return typesNotRemoved.Count == 0;
     }
 
     private static IReadOnlyCollection<Type> GetComRegistratableTypes(Assembly assembly)
     {
-        static bool TypeMustBeRegistered(Type type)
-        {
-            if (type.IsGenericType)
-            {
-                return false;
-            }
-
-            if (type.IsAbstract)
-            {
-                return false;
-            }
-
-            var publicParameterlessCtor = type.GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, Array.Empty<Type>(), null);
-            if (!type.IsValueType && publicParameterlessCtor is null)
-            {
-                return false;
-            }
-
-            if (type.IsClass || type.IsValueType)
-            {
-                return true;
-            }
-
-            return Marshal.IsTypeVisibleFromCom(type);
-        }
-
         if (assembly is null)
         {
             throw new ArgumentNullException(nameof(assembly));
         }
 
-        return assembly.GetExportedTypes().Where(TypeMustBeRegistered).ToArray();
+        return assembly.GetExportedTypes().Where(TypeRequiresRegistrationHelper).ToArray();
     }
 
     private static bool IsComRegistratableValueType(Type type)
@@ -343,7 +404,104 @@ public class RegistrationServices
         }
 
         var parentComType = GetBaseComImportType(type);
-        return parentComType != null && MarshalExtension.GetClassInterfaceGuidForType(parentComType!) == MarshalExtension.GetClassInterfaceGuidForType(type);
+        return parentComType != null && MarshalExtension.GenerateGuidForType(parentComType!) == MarshalExtension.GenerateGuidForType(type);
+    }
+
+    private void CallUserDefinedRegistrationMethod(Type type, bool bRegister)
+    {
+        bool bFunctionCalled = false;
+
+        // Retrieve the attribute type to use to determine if a function is the requested user defined
+        // registration function.
+        Type RegFuncAttrType;
+        if (bRegister)
+        {
+            RegFuncAttrType = typeof(ComRegisterFunctionAttribute);
+        }
+        else
+        {
+            RegFuncAttrType = typeof(ComUnregisterFunctionAttribute);
+        }
+
+        for (Type? currType = type; !bFunctionCalled && currType != null; currType = currType.BaseType)
+        {
+            // Retrieve all the methods.
+            MethodInfo[] aMethods = currType!.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+            int NumMethods = aMethods.Length;
+
+            // Go through all the methods and check for the ComRegisterMethod custom attribute.
+            for (int cMethods = 0; cMethods < NumMethods; cMethods++)
+            {
+                MethodInfo CurrentMethod = aMethods[cMethods];
+
+                // Check to see if the method has the custom attribute.
+                if (CurrentMethod.GetCustomAttributes(RegFuncAttrType, true).Length != 0)
+                {
+                    // Check to see if the method is static before we call it.
+                    if (!CurrentMethod.IsStatic)
+                    {
+                        if (bRegister)
+                        {
+                            throw new InvalidOperationException($"The registration method {CurrentMethod.Name} of type {currType!.Name} is non-static.");
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException($"The unregistration method {CurrentMethod.Name} of type {currType!.Name} is non-static.");
+                        }
+                    }
+
+                    // Finally check that the signature is string ret void.
+                    ParameterInfo[] aParams = CurrentMethod.GetParameters();
+                    if (CurrentMethod.ReturnType != typeof(void) ||
+                        aParams == null ||
+                        aParams.Length != 1 ||
+                        (aParams[0].ParameterType != typeof(String) && aParams[0].ParameterType != typeof(Type)))
+                    {
+                        if (bRegister)
+                        {
+                            throw new InvalidOperationException($"The signature of registration method {CurrentMethod.Name} of type {currType!.Name} is invalid.");
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException($"The signature of unregistration method {CurrentMethod.Name} of type {currType!.Name} is invalid.");
+                        }
+                    }
+
+                    // There can only be one register and one unregister function per type.
+                    if (bFunctionCalled)
+                    {
+                        if (bRegister)
+                        {
+                            throw new InvalidOperationException($"Found multiple regstration methods in type {currType!.Name}.");
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException($"Found multiple unregstration methods in type {currType!.Name}.");
+                        }
+                    }
+
+                    // The function is valid so set up the arguments to call it.
+                    Object[] objs = new Object[1];
+                    if (aParams[0].ParameterType == typeof(String))
+                    {
+                        using var rootKey = GetTargetRootKey();
+                        // We are dealing with the string overload of the function.
+                        objs[0] = $"{rootKey.Name}\\{RegistryKeys.CLSID}\\{{{MarshalExtension.GenerateGuidForType(type).ToString().ToUpper(CultureInfo.InvariantCulture)}}}";
+                    }
+                    else
+                    {
+                        // We are dealing with the type overload of the function.
+                        objs[0] = type;
+                    }
+
+                    // Invoke the COM register function.
+                    CurrentMethod.Invoke(null, objs);
+
+                    // Mark the function as having been called.
+                    bFunctionCalled = true;
+                }
+            }
+        }
     }
 
     private static void RegisterValueType(Type type, string assemblyName, string assemblyVersion, string? codeBase, string runtimeVersion)
@@ -353,7 +511,7 @@ public class RegistrationServices
             throw new ArgumentException("Cannot register a type without a full name");
         }
 
-        var recordId = $"{{{MarshalExtension.GetClassInterfaceGuidForType(type).ToString().ToUpperInvariant()}}}";
+        var recordId = $"{{{MarshalExtension.GenerateGuidForType(type).ToString().ToUpperInvariant()}}}";
 
         using var rootKey = GetTargetRootKey();
         using var recordRootKey = rootKey.CreateSubKey(RegistryKeys.Record);
@@ -374,7 +532,7 @@ public class RegistrationServices
 
     private static bool UnregisterValueType(Type type, string assemblyVersion)
     {
-        var recordId = $"{{{MarshalExtension.GetClassInterfaceGuidForType(type).ToString().ToUpperInvariant()}}}";
+        var recordId = $"{{{MarshalExtension.GenerateGuidForType(type).ToString().ToUpperInvariant()}}}";
 
         using var rootKey = GetTargetRootKey();
         using var recordRootKey = rootKey.OpenSubKey(RegistryKeys.Record, true);
@@ -403,7 +561,7 @@ public class RegistrationServices
 
         if (IsEmptyRegistryKey(recordRootKey))
         {
-            Registry.ClassesRoot.DeleteSubKey(RegistryKeys.Record, false);
+            rootKey.DeleteSubKey(RegistryKeys.Record, false);
         }
 
         return allVersionsGone;
@@ -417,8 +575,8 @@ public class RegistrationServices
         }
 
         var docString = type.FullName!;
-        var clsId = $"{{{Marshal.GenerateGuidForType(type).ToString().ToUpperInvariant()}}}";
-        var progId = Marshal.GenerateProgIdForType(type);
+        var clsId = $"{{{MarshalExtension.GenerateGuidForType(type).ToString().ToUpperInvariant()}}}";
+        var progId = MarshalExtension.GenerateProgIdForType(type);
 
         using var rootKey = GetTargetRootKey();
         if (!string.IsNullOrWhiteSpace(progId))
@@ -446,10 +604,10 @@ public class RegistrationServices
         // For .NET FX this would be mscoree.dll.
         // According to https://learn.microsoft.com/en-us/dotnet/core/native-interop/expose-components-to-com,
         // this might be the XYZ.comhost.dll
-        var comHostFile = GetComHost(codeBase);
+        var comHostFile = GetComHost(assemblyName, codeBase);
         if (null != comHostFile)
         {
-            inProcServerKey.SetValue(string.Empty, string.Empty);
+            inProcServerKey.SetValue(string.Empty, comHostFile);
             inProcServerKey.SetValue(RegistryKeys.ThreadingModel, RegistryValues.ThreadingModel);
             inProcServerKey.SetValue(RegistryKeys.Class, type.FullName!);
             inProcServerKey.SetValue(RegistryKeys.Assembly, assemblyName);
@@ -589,20 +747,52 @@ public class RegistrationServices
         }
     }
 
-    private static string? GetComHost(string? codeBase)
+    private static string? GetComHost(string assemblyName, string? codeBase)
     {
-        if (null == codeBase)
+        // As mentioned in comment of RegisterManagedType, we don't want the special XYZ.comhost.dll,
+        // if this code is run with .NET Framework, so we need to detect it on runtime here.
+        // see: https://github.com/dotnet/runtime/issues/22779
+        static bool IsNetFramework()
+        {
+            // Find space before version info
+            int ispace = RuntimeInformation.FrameworkDescription.LastIndexOf(' ');
+            var frameworkName = string.Empty;
+            if (ispace != -1)
+            {
+                // Remove version info
+                frameworkName = RuntimeInformation.FrameworkDescription.Substring(0, ispace);
+            }
+
+            return frameworkName switch
+            {
+                ".NET Core" => false,
+                ".NET" => false, //.NET 5+ is actually .NET Core with newer version
+                ".NET Framework" => true,
+                _ => false
+            };
+        }
+
+        if (IsNetFramework())
+        {
+            return RegistryValues.MsCorEEFileName;
+        }
+
+        if (codeBase is null && assemblyName is null)
         {
             return null;
         }
 
         string comhost = nameof(comhost);
 
-        var extension = Path.GetExtension(codeBase);
-        var fileName = Path.GetFileNameWithoutExtension(codeBase);
-        var fileLocation = Path.GetDirectoryName(codeBase);
+        // If codeBase is null, use assemblyName as fallback file name base and current directory
+        // as location to search, so most simple cases are just working.
+        var extension = codeBase != null ? Path.GetExtension(codeBase) : ".dll";
+        var fileBaseName = codeBase != null ? Path.GetFileNameWithoutExtension(codeBase) : assemblyName;
+        var fileLocation = codeBase != null ? Path.GetDirectoryName(codeBase) : Environment.CurrentDirectory;
 
-        var comHostFileName = $"{fileName}.{comhost}{extension}";
+        //TODO: Search for other names when the following feature will be in newer SDK versions:
+        // https://github.com/dotnet/sdk/issues/37570
+        var comHostFileName = $"{fileBaseName}.{comhost}{extension}";
         var comHostFileLocation = comHostFileName;
         if (!string.IsNullOrWhiteSpace(fileLocation))
         {
@@ -619,10 +809,11 @@ public class RegistrationServices
 
     private static bool UnregisterManagedType(Type type, string assemblyVersion)
     {
-        var clsId = $"{{{Marshal.GenerateGuidForType(type).ToString().ToUpperInvariant()}}}";
-        var progId = Marshal.GenerateProgIdForType(type);
+        var clsId = $"{{{MarshalExtension.GenerateGuidForType(type).ToString().ToUpperInvariant()}}}";
+        var progId = MarshalExtension.GenerateProgIdForType(type);
 
-        using var clsIdRootKey = Registry.ClassesRoot.OpenSubKey(RegistryKeys.CLSID, true);
+        using var rootKey = GetTargetRootKey();
+        using var clsIdRootKey = rootKey.OpenSubKey(RegistryKeys.CLSID, true);
 
         using var clsIdKey = clsIdRootKey?.OpenSubKey(clsId, true);
 
@@ -693,12 +884,12 @@ public class RegistrationServices
 
         if (IsEmptyRegistryKey(clsIdRootKey))
         {
-            Registry.ClassesRoot.DeleteSubKey(RegistryKeys.CLSID, false);
+            rootKey.DeleteSubKey(RegistryKeys.CLSID, false);
         }
 
         if (allVersionsGone && !string.IsNullOrWhiteSpace(progId))
         {
-            using var typeNameKey = Registry.ClassesRoot.OpenSubKey(progId!, true);
+            using var typeNameKey = rootKey.OpenSubKey(progId!, true);
 
             typeNameKey?.DeleteValue(string.Empty, false);
 
@@ -713,7 +904,7 @@ public class RegistrationServices
 
             if (IsEmptyRegistryKey(typeNameKey))
             {
-                Registry.ClassesRoot.DeleteSubKey(progId!, false);
+                rootKey.DeleteSubKey(progId!, false);
             }
         }
 
@@ -727,9 +918,10 @@ public class RegistrationServices
             throw new ArgumentException("Cannot register a type without a full name");
         }
 
-        var clsId = $"{{{Marshal.GenerateGuidForType(type).ToString().ToUpperInvariant()}}}";
+        var clsId = $"{{{MarshalExtension.GenerateGuidForType(type).ToString().ToUpperInvariant()}}}";
 
-        using var clsIdRootKey = Registry.ClassesRoot.CreateSubKey(RegistryKeys.CLSID);
+        using var rootKey = GetTargetRootKey();
+        using var clsIdRootKey = rootKey.CreateSubKey(RegistryKeys.CLSID);
 
         using var clsIdKey = clsIdRootKey.CreateSubKey(clsId);
 
@@ -759,9 +951,10 @@ public class RegistrationServices
 
     private static bool UnregisterImportedComType(Type type, string assemblyVersion)
     {
-        var clsId = $"{{{Marshal.GenerateGuidForType(type).ToString().ToUpperInvariant()}}}";
+        var clsId = $"{{{MarshalExtension.GenerateGuidForType(type).ToString().ToUpperInvariant()}}}";
 
-        using var clsIdRootKey = Registry.ClassesRoot.OpenSubKey(RegistryKeys.CLSID, true);
+        using var rootKey = GetTargetRootKey();
+        using var clsIdRootKey = rootKey.OpenSubKey(RegistryKeys.CLSID, true);
 
         using var clsIdKey = clsIdRootKey?.OpenSubKey(clsId, true);
 
@@ -796,10 +989,71 @@ public class RegistrationServices
 
         if (IsEmptyRegistryKey(clsIdRootKey))
         {
-            Registry.ClassesRoot.DeleteSubKey(RegistryKeys.CLSID, false);
+            rootKey.DeleteSubKey(RegistryKeys.CLSID, false);
         }
 
         return allVersionsGone;
+    }
+
+    private static void RegisterPrimaryInteropAssembly(Assembly assembly, string? strAsmCodeBase, PrimaryInteropAssemblyAttribute attr)
+    {
+        // Validate that the PIA has a strong name.
+        if ((assembly.GetName().GetPublicKey()?.Length ?? 0) == 0)
+        {
+            throw new InvalidOperationException("Primary interopt assembly must be strong name signed.");
+        }
+
+        String strTlbId = "{" + MarshalExtension.GetTypeLibGuidForAssembly(assembly).ToString().ToUpper(CultureInfo.InvariantCulture) + "}";
+        String strVersion = attr.MajorVersion.ToString("x", CultureInfo.InvariantCulture) + "." + attr.MinorVersion.ToString("x", CultureInfo.InvariantCulture);
+
+        using var rootKey = GetTargetRootKey();
+        // Create the HKEY_CLASS_ROOT\TypeLib key.
+        using var TypeLibRootKey = rootKey.CreateSubKey(RegistryKeys.TypeLib);
+        // Create the HKEY_CLASS_ROOT\TypeLib\<TLBID> key.
+        using var TypeLibKey = TypeLibRootKey.CreateSubKey(strTlbId);
+        // Create the HKEY_CLASS_ROOT\TypeLib\<TLBID>\<Major.Minor> key.
+        using var VersionSubKey = TypeLibKey.CreateSubKey(strVersion);
+        // Create the HKEY_CLASS_ROOT\TypeLib\<TLBID>\PrimaryInteropAssembly key.
+        VersionSubKey.SetValue(RegistryKeys.PrimaryInteropAssemblyName, assembly.FullName!);
+        if (strAsmCodeBase is not null)
+        {
+            VersionSubKey.SetValue(RegistryKeys.PrimaryInteropAssemblyCodeBase, strAsmCodeBase!);
+        }
+    }
+
+    private static void UnregisterPrimaryInteropAssembly(Assembly assembly, PrimaryInteropAssemblyAttribute attr)
+    {
+        String strTlbId = "{" + MarshalExtension.GetTypeLibGuidForAssembly(assembly).ToString().ToUpper(CultureInfo.InvariantCulture) + "}";
+        String strVersion = attr.MajorVersion.ToString("x", CultureInfo.InvariantCulture) + "." + attr.MinorVersion.ToString("x", CultureInfo.InvariantCulture);
+
+        using var rootKey = GetTargetRootKey();
+        // Try to open the HKEY_CLASS_ROOT\TypeLib key.
+        using var TypeLibRootKey = rootKey.OpenSubKey(RegistryKeys.TypeLib, true);
+        // Try to open the HKEY_CLASS_ROOT\TypeLib\<TLBID> key.
+        using var TypeLibKey = TypeLibRootKey?.OpenSubKey(strTlbId, true);
+        // Try to open the HKEY_CLASS_ROOT\TypeLib<TLBID>\<Major.Minor> key.
+        using var VersionSubKey = TypeLibKey?.OpenSubKey(strVersion, true);
+        // Delete the values we created.
+        VersionSubKey?.DeleteValue(RegistryKeys.PrimaryInteropAssemblyName, false);
+        VersionSubKey?.DeleteValue(RegistryKeys.PrimaryInteropAssemblyCodeBase, false);
+
+        // If there are no other values or subkeys then we can delete the VersionKey.
+        if (IsEmptyRegistryKey(VersionSubKey))
+        {
+            TypeLibKey?.DeleteSubKey(strVersion);
+        }
+
+        // If there are no other values or subkeys then we can delete the TypeLibKey.
+        if (IsEmptyRegistryKey(TypeLibKey))
+        {
+            TypeLibRootKey?.DeleteSubKey(strTlbId);
+        }
+
+        // If there are no other values or subkeys then we can delete the TypeLib key.
+        if (IsEmptyRegistryKey(TypeLibRootKey))
+        {
+            rootKey.DeleteSubKey(RegistryKeys.TypeLib);
+        }
     }
 
     private static bool IsEmptyRegistryKey(RegistryKey? key)

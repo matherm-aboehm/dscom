@@ -146,19 +146,15 @@ internal class ElemDescBasedWriter : BaseWriter
                 break;
             case VarEnum.VT_USERDEFINED:
                 effectiveType = Type.GetUnderlayingType();
-                effectiveTypeInfo = Context.TypeInfoResolver.ResolveTypeInfo(effectiveType);
+                // Try to find the default interface first
+                effectiveTypeInfo = Context.TypeInfoResolver.ResolveDefaultCoClassInterface(effectiveType) ??
+                    Context.TypeInfoResolver.ResolveTypeInfo(effectiveType);
 
                 if ((Type.IsInterface || Type.IsClass) && effectiveTypeInfo == null)
                 {
-                    // Try to find the default interface
-                    var defaultInterface = Context.TypeInfoResolver.ResolveDefaultCoClassInterface(effectiveType);
-                    if (defaultInterface == null)
-                    {
-                        //IUnknown substitution
-                        elementVarDesc = VarEnum.VT_UNKNOWN;
-                        effectiveType = typeof(IUnknown);
-                    }
-                    effectiveTypeInfo = defaultInterface;
+                    //IUnknown substitution
+                    elementVarDesc = VarEnum.VT_UNKNOWN;
+                    effectiveType = typeof(IUnknown);
                 }
                 break;
         }
