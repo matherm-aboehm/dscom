@@ -34,6 +34,10 @@
     <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
     <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
     <ProduceOnlyReferenceAssembly>true</ProduceOnlyReferenceAssembly>
