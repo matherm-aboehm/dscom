@@ -20,17 +20,20 @@ namespace dSPACE.Runtime.InteropServices;
 /// <summary>
 /// Uses the "ASMPath" option to handle the AppDomain.CurrentDomain.AssemblyResolve event and try to load the specified assemblies.
 /// </summary>
-internal sealed class AssemblyResolver : AssemblyLoadContext, IDisposable
+internal sealed class AssemblyResolver : MetadataAssemblyResolver, IDisposable
 {
     private readonly string[] _paths;
+    private readonly MetadataLoadContext _reflectionOnlyContext;
+    private readonly AssemblyLoadContext _runtimeContext;
 
     private bool _disposedValue;
 
-    internal AssemblyResolver(string[] paths, bool isCollectible)
-        : base("dscom", isCollectible)
+    internal AssemblyResolver(string[] paths)
     {
         _paths = paths;
-        Resolving += Context_Resolving;
+        _reflectionOnlyContext = new MetadataLoadContext(this);
+        _runtimeContext = new AssemblyLoadContext("dscom", true);
+        _runtimeContext.Resolving += Context_Resolving;
     }
 
     private Assembly? Context_Resolving(AssemblyLoadContext context, AssemblyName name)
@@ -40,13 +43,52 @@ internal sealed class AssemblyResolver : AssemblyLoadContext, IDisposable
             var dllToLoad = Path.Combine(path, $"{name.Name}.dll");
             if (File.Exists(dllToLoad))
             {
-                return LoadFromAssemblyPath(dllToLoad);
+                return context.LoadFromAssemblyPath(dllToLoad);
             }
 
             var exeToLoad = Path.Combine(path, $"{name.Name}.exe");
             if (File.Exists(exeToLoad))
             {
-                return LoadFromAssemblyPath(exeToLoad);
+                return context.LoadFromAssemblyPath(exeToLoad);
+            }
+        }
+
+        return null;
+    }
+
+    public override Assembly? Resolve(MetadataLoadContext context, AssemblyName assemblyName)
+    {
+        foreach (var path in _paths)
+        {
+            var dllToLoad = Path.Combine(path, $"{assemblyName.Name}.dll");
+            if (File.Exists(dllToLoad))
+            {
+                return context.LoadFromAssemblyPath(dllToLoad);
+            }
+
+            var exeToLoad = Path.Combine(path, $"{assemblyName.Name}.exe");
+            if (File.Exists(exeToLoad))
+            {
+                return context.LoadFromAssemblyPath(exeToLoad);
+            }
+        }
+
+        // Last resort, search for simple name in currently loaded runtime assemblies.
+        var rtAssembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(
+            a => a.GetName().Name == assemblyName.Name);
+        if (rtAssembly == null)
+        {
+            // Or try to load into runtime context using AssemblyName 
+            // (use default runtime resolution)
+            using var scope = _runtimeContext.EnterContextualReflection();
+            rtAssembly = _runtimeContext.LoadFromAssemblyName(assemblyName);
+        }
+
+        if (rtAssembly != null)
+        {
+            if (!string.IsNullOrEmpty(rtAssembly.Location))
+            {
+                return context.LoadFromAssemblyPath(rtAssembly.Location);
             }
         }
 
@@ -55,7 +97,12 @@ internal sealed class AssemblyResolver : AssemblyLoadContext, IDisposable
 
     public Assembly LoadAssembly(string path)
     {
-        return LoadFromAssemblyPath(path);
+        return _runtimeContext.LoadFromAssemblyPath(path);
+    }
+
+    public ROAssemblyExtended LoadROAssembly(string path)
+    {
+        return new(_reflectionOnlyContext.LoadFromAssemblyPath(path));
     }
 
     private void Dispose(bool disposing)
@@ -64,11 +111,9 @@ internal sealed class AssemblyResolver : AssemblyLoadContext, IDisposable
         {
             if (disposing)
             {
-                Resolving -= Context_Resolving;
-                if (IsCollectible)
-                {
-                    Unload();
-                }
+                _reflectionOnlyContext.Dispose();
+                _runtimeContext.Resolving -= Context_Resolving;
+                _runtimeContext.Unload();
             }
 
             _disposedValue = true;

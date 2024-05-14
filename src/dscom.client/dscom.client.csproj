@@ -41,6 +41,8 @@
     </PackageReference>
     <PackageReference Include="System.CommandLine" Version="2.0.0-rc.2.25502.107" />
     <PackageReference Include="System.CommandLine.NamingConventionBinder" Version="2.0.0-beta5.25306.1" />
+    <PackageReference Include="System.Reflection.MetadataLoadContext" Version="6.0.0" Condition="'$(TargetFramework)' == 'net6.0'" />
+    <PackageReference Include="System.Reflection.MetadataLoadContext" Version="8.0.0" Condition="'$(TargetFramework)' == 'net8.0'" />
     <None Include="..\dscom\packageIcon.png" Pack="true" PackagePath="\" />
     <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
