@@ -180,7 +180,7 @@ public static class ConsoleApp
                 {
                     var paths = options.ASMPath.Append(Path.GetDirectoryName(options.TargetAssembly)).ToArray();
 
-                    using var assemblyResolver = new AssemblyResolver(paths!, false);
+                    using var assemblyResolver = new AssemblyResolver(paths!);
 
                     if (!File.Exists(options.TargetAssembly))
                     {
@@ -203,7 +203,7 @@ public static class ConsoleApp
                     {
                         var lypeLibConvertOptions = new TypeLibConverterOptions()
                         {
-                            ASMPath = paths!,
+                            ASMPath = options.ASMPath,
 
                             TLBRefpath = options.TLBRefpath,
 
@@ -217,7 +217,7 @@ public static class ConsoleApp
                         if (options.TLB)
                         {
                             // Export TLB
-                            ExportTypeLibraryImpl(assembly, lypeLibConvertOptions);
+                            ExportTypeLibraryImpl(assemblyResolver.LoadROAssembly(options.TargetAssembly), lypeLibConvertOptions);
 
                             // Register TLB
                             RegisterTypeLib(lypeLibConvertOptions.Out);
@@ -284,14 +284,14 @@ public static class ConsoleApp
             asmPaths = asmPaths.Prepend(dir).ToArray();
         }
 
-        using var assemblyResolver = new AssemblyResolver(asmPaths, options.ShouldEmbed());
+        using var assemblyResolver = new AssemblyResolver(asmPaths);
         weakRef = new WeakReference(assemblyResolver, trackResurrection: true);
         if (!File.Exists(options.Assembly))
         {
             throw new FileNotFoundException($"File {options.Assembly} not found.");
         }
 
-        var assembly = assemblyResolver.LoadAssembly(options.Assembly);
+        var assembly = assemblyResolver.LoadROAssembly(options.Assembly);
 
         ExportTypeLibraryImpl(assembly, options);
     }
