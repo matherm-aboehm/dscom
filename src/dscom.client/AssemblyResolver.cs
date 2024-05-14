@@ -13,26 +13,24 @@
 // limitations under the License.
 
 using System.Reflection;
-using System.Runtime.Loader;
 
 namespace dSPACE.Runtime.InteropServices;
 
 /// <summary>
 /// Uses the "ASMPath" option to handle the AppDomain.CurrentDomain.AssemblyResolve event and try to load the specified assemblies.
 /// </summary>
-internal sealed class AssemblyResolver : IDisposable
+internal sealed class AssemblyResolver : MetadataAssemblyResolver, IDisposable
 {
-    private readonly AssemblyLoadContext _context;
+    private readonly MetadataLoadContext _context;
     private bool _disposedValue;
 
     internal AssemblyResolver(TypeLibConverterOptions options)
     {
         Options = options;
-        _context = new AssemblyLoadContext("dscom");
-        _context.Resolving += Context_Resolving;
+        _context = new MetadataLoadContext(this);
     }
 
-    private Assembly? Context_Resolving(AssemblyLoadContext context, AssemblyName name)
+    public override Assembly? Resolve(MetadataLoadContext context, AssemblyName assemblyName)
     {
         var dir = Path.GetDirectoryName(Options.Assembly);
 
@@ -44,25 +42,36 @@ internal sealed class AssemblyResolver : IDisposable
 
         foreach (var path in asmPaths)
         {
-            var dllToLoad = Path.Combine(path, $"{name.Name}.dll");
+            var dllToLoad = Path.Combine(path, $"{assemblyName.Name}.dll");
             if (File.Exists(dllToLoad))
             {
-                return _context.LoadFromAssemblyPath(dllToLoad);
+                return context.LoadFromAssemblyPath(dllToLoad);
             }
 
-            var exeToLoad = Path.Combine(path, $"{name.Name}.exe");
+            var exeToLoad = Path.Combine(path, $"{assemblyName.Name}.exe");
             if (File.Exists(exeToLoad))
             {
-                return _context.LoadFromAssemblyPath(exeToLoad);
+                return context.LoadFromAssemblyPath(exeToLoad);
+            }
+        }
+
+        // Last resort, search for simple name in currently loaded runtime assemblies.
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            var an = assembly.GetName();
+            if (an.Name == assemblyName.Name &&
+                !string.IsNullOrEmpty(assembly.Location))
+            {
+                return context.LoadFromAssemblyPath(assembly.Location);
             }
         }
 
         return null;
     }
 
-    public Assembly LoadAssembly(string path)
+    public ROAssemblyExtended LoadAssembly(string path)
     {
-        return _context.LoadFromAssemblyPath(path);
+        return new(_context.LoadFromAssemblyPath(path));
     }
 
     public TypeLibConverterOptions Options { get; }
@@ -73,7 +82,7 @@ internal sealed class AssemblyResolver : IDisposable
         {
             if (disposing)
             {
-                _context.Resolving -= Context_Resolving;
+                _context.Dispose();
             }
 
             _disposedValue = true;
