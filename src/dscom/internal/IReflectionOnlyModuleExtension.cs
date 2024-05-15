@@ -2,7 +2,7 @@
 
 namespace dSPACE.Runtime.InteropServices;
 
-public interface IReflectionOnlyModuleExtension
+internal interface IReflectionOnlyModuleExtension
 {
     MetadataReader Reader { get; }
 }
