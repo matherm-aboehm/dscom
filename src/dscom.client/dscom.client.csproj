@@ -28,6 +28,8 @@
     <PackageProjectUrl>https://github.com/dspace-group/dscom</PackageProjectUrl>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <PackageTags>com;tlb;ole;idl;tlbexp;interop;typelib;ConvertAssemblyToTypeLib;TypeLibConverter</PackageTags>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\dscom\dscom.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
@@ -49,7 +51,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\dscom\dscom.csproj" />
+    <ProjectReference Include="..\dscom\dscom.csproj" Aliases="dscom" />
   </ItemGroup>
 
 </Project>
