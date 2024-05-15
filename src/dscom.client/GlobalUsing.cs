@@ -13,27 +13,29 @@
 // limitations under the License.
 
 #pragma warning disable CS8019
+extern alias dscom;
 
-global using CUSTDATA = dSPACE.Runtime.InteropServices.ComTypes.Internal.CUSTDATA;
-global using CUSTDATAITEM = dSPACE.Runtime.InteropServices.ComTypes.Internal.CUSTDATAITEM;
-global using HRESULT = dSPACE.Runtime.InteropServices.ComTypes.Internal.HRESULT;
-global using IClassFactory = dSPACE.Runtime.InteropServices.ComTypes.Internal.IClassFactory;
-global using ICreateTypeInfo2 = dSPACE.Runtime.InteropServices.ComTypes.Internal.ICreateTypeInfo2;
-global using ICreateTypeLib = dSPACE.Runtime.InteropServices.ComTypes.Internal.ICreateTypeLib;
-global using ICreateTypeLib2 = dSPACE.Runtime.InteropServices.ComTypes.Internal.ICreateTypeLib2;
-global using IDispatch = dSPACE.Runtime.InteropServices.ComTypes.Internal.IDispatch;
-global using IDLDESC = dSPACE.Runtime.InteropServices.ComTypes.Internal.IDLDESC;
-global using ITypeInfo64Bit = dSPACE.Runtime.InteropServices.ComTypes.Internal.ITypeInfo64Bit;
-global using IUnknown = dSPACE.Runtime.InteropServices.ComTypes.Internal.IUnknown;
-global using Ole32 = dSPACE.Runtime.InteropServices.ComTypes.Internal.Ole32;
-global using OleAut32 = dSPACE.Runtime.InteropServices.ComTypes.Internal.OleAut32;
-global using PARAMDESCEX = dSPACE.Runtime.InteropServices.ComTypes.Internal.PARAMDESCEX;
+global using IReflectionOnlyModuleExtension = dscom::dSPACE.Runtime.InteropServices.IReflectionOnlyModuleExtension;
+global using CUSTDATA = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.CUSTDATA;
+global using CUSTDATAITEM = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.CUSTDATAITEM;
+global using HRESULT = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.HRESULT;
+global using IClassFactory = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.IClassFactory;
+global using ICreateTypeInfo2 = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.ICreateTypeInfo2;
+global using ICreateTypeLib = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.ICreateTypeLib;
+global using ICreateTypeLib2 = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.ICreateTypeLib2;
+global using IDispatch = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.IDispatch;
+global using IDLDESC = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.IDLDESC;
+global using ITypeInfo64Bit = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.ITypeInfo64Bit;
+global using IUnknown = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.IUnknown;
+global using Ole32 = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.Ole32;
+global using OleAut32 = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.OleAut32;
+global using PARAMDESCEX = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.PARAMDESCEX;
 
-global using REGKIND = dSPACE.Runtime.InteropServices.ComTypes.Internal.REGKIND;
-global using VARIANT = dSPACE.Runtime.InteropServices.ComTypes.Internal.VARIANT;
+global using REGKIND = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.REGKIND;
+global using VARIANT = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.VARIANT;
 
-global using Constants = dSPACE.Runtime.InteropServices.Internal.Constants;
-global using Guids = dSPACE.Runtime.InteropServices.Internal.Guids;
+global using Constants = dscom::dSPACE.Runtime.InteropServices.Internal.Constants;
+global using Guids = dscom::dSPACE.Runtime.InteropServices.Internal.Guids;
 global using CALLCONV = System.Runtime.InteropServices.ComTypes.CALLCONV;
 global using DISPPARAMS = System.Runtime.InteropServices.ComTypes.DISPPARAMS;
 global using ELEMDESC = System.Runtime.InteropServices.ComTypes.ELEMDESC;
