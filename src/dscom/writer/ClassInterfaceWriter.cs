@@ -16,12 +16,18 @@ namespace dSPACE.Runtime.InteropServices.Writer;
 
 internal sealed class ClassInterfaceWriter : DualInterfaceWriter
 {
-    public ClassInterfaceWriter(Type sourceType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
+    public ClassInterfaceWriter(ClassInterfaceType classInterfaceType, Type sourceType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
     {
         TypeFlags = TYPEFLAGS.TYPEFLAG_FDUAL | TYPEFLAGS.TYPEFLAG_FDISPATCHABLE | TYPEFLAGS.TYPEFLAG_FOLEAUTOMATION | TYPEFLAGS.TYPEFLAG_FHIDDEN;
+        ClassInterfaceType = classInterfaceType;
+        ComDefaultInterface = sourceType.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value;
     }
 
     protected override string Name => $"_{base.Name!}";
+
+    public ClassInterfaceType ClassInterfaceType { get; }
+
+    public Type? ComDefaultInterface { get; }
 
     public override void Create()
     {
@@ -30,7 +36,7 @@ internal sealed class ClassInterfaceWriter : DualInterfaceWriter
 
     protected override Guid GetTypeGuid()
     {
-        return MarshalExtension.GetClassInterfaceGuidForType(SourceType);
+        return MarshalExtension.GetClassInterfaceGuidForType(SourceType, this);
     }
 
     /// <summary>

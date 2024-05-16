@@ -89,6 +89,8 @@ internal sealed class LibraryWriter : BaseWriter
 
         var comVisibleAttributeAssembly = Assembly.GetCustomAttribute<ComVisibleAttribute>();
         var typesAreVisibleForComByDefault = comVisibleAttributeAssembly == null || comVisibleAttributeAssembly.Value;
+        var classIntfAttributeAssembly = Assembly.GetCustomAttribute<ClassInterfaceAttribute>();
+        var defaultClassInterfaceType = classIntfAttributeAssembly?.Value ?? ClassInterfaceType.AutoDispatch;
 
         var types = Assembly.GetLoadableTypesAndLog(Context);
 
@@ -168,22 +170,19 @@ internal sealed class LibraryWriter : BaseWriter
             {
                 var createClassInterface = true;
                 //check for class interfaces to generate:
-                if (type?.GetCustomAttribute<ClassInterfaceAttribute>() != null)
+                var classInterfaceType = type.GetCustomAttribute<ClassInterfaceAttribute>()?.Value ?? defaultClassInterfaceType;
+                switch (classInterfaceType)
                 {
-                    var classInterfaceType = type.GetCustomAttribute<ClassInterfaceAttribute>()!.Value;
-                    switch (classInterfaceType)
-                    {
-                        case ClassInterfaceType.AutoDispatch:
-                            createClassInterface = true;
-                            break;
-                        case ClassInterfaceType.AutoDual:
-                            //CA1408: Do not use AutoDual ClassInterfaceType
-                            //https://docs.microsoft.com/en-us/visualstudio/code-quality/ca1408?view=vs-2022
-                            throw new NotSupportedException("Dual class interfaces not supported!");
-                        case ClassInterfaceType.None:
-                            createClassInterface = false;
-                            break;
-                    }
+                    case ClassInterfaceType.AutoDispatch:
+                        createClassInterface = true;
+                        break;
+                    case ClassInterfaceType.AutoDual:
+                        //CA1408: Do not use AutoDual ClassInterfaceType
+                        //https://docs.microsoft.com/en-us/visualstudio/code-quality/ca1408?view=vs-2022
+                        throw new NotSupportedException("Dual class interfaces not supported!");
+                    case ClassInterfaceType.None:
+                        createClassInterface = false;
+                        break;
                 }
 
                 //check for generic base types
@@ -202,7 +201,7 @@ internal sealed class LibraryWriter : BaseWriter
                 {
                     if (typeWriter is ClassWriter classWriter)
                     {
-                        var classInterfaceWriter = new ClassInterfaceWriter(type!, this, Context);
+                        var classInterfaceWriter = new ClassInterfaceWriter(classInterfaceType, type!, this, Context);
                         classInterfaceWriters.Add(classInterfaceWriter);
                         classWriter.ClassInterfaceWriter = classInterfaceWriter;
                     }
