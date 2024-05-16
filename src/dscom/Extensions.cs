@@ -12,8 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
+using System.Runtime.ConstrainedExecution;
 using System.Runtime.InteropServices;
 
 namespace dSPACE.Runtime.InteropServices;
@@ -21,6 +26,22 @@ namespace dSPACE.Runtime.InteropServices;
 [ExcludeFromCodeCoverage]
 internal static class Extensions
 {
+#if NETFRAMEWORK || NETSTANDARD
+    /// <summary>
+    /// Deconstructs the current <see cref="KeyValuePair&lt;TKey, TValue&gt;"/>.
+    /// </summary>
+    /// <typeparam name="TKey">The type of the key.</typeparam>
+    /// <typeparam name="TValue">The type of the value.</typeparam>
+    /// <param name="pair">The current <see cref="KeyValuePair&lt;TKey, TValue&gt;"/> to deconstruct.</param>
+    /// <param name="key">The key of the current <see cref="KeyValuePair&lt;TKey, TValue&gt;"/>.</param>
+    /// <param name="value">The value of the current <see cref="KeyValuePair&lt;TKey, TValue&gt;"/>.</param>
+    internal static void Deconstruct<TKey, TValue>(this KeyValuePair<TKey, TValue> pair, out TKey key, out TValue value)
+    {
+        key = pair.Key;
+        value = pair.Value;
+    }
+#endif
+
     [SuppressMessage("Microsoft.Style", "IDE0060", Justification = "For future use")]
     internal static int GetTLBLanguageIdentifierForAssembly(this Assembly assembly)
     {
@@ -170,29 +191,18 @@ internal static class Extensions
     internal static bool IsComVisible(this Type type)
     {
         type = type.GetUnderlayingType();
-        var AssemblyIsComVisible = type.Assembly.GetCustomAttribute<ComVisibleAttribute>() == null
-                                   || type.Assembly.GetCustomAttribute<ComVisibleAttribute>()!.Value;
+        var AssemblyIsComVisible = type.Assembly.GetCustomAttribute<ComVisibleAttribute>()?.Value ?? true;
 
         if (AssemblyIsComVisible)
         {
             //a type of a com visible assembly is com visible unless it is explicitly com invisible
-            if (type.GetCustomAttribute<ComVisibleAttribute>() != null
-                && !type.GetCustomAttribute<ComVisibleAttribute>()!.Value)
-            {
-                return false;
-            }
+            return type.GetCustomAttribute<ComVisibleAttribute>()?.Value ?? true;
         }
         else
         {
             //a type of a com invisible assembly is com invisible unless it is explicitly com visible
-            if (type.GetCustomAttribute<ComVisibleAttribute>() == null
-                || (type.GetCustomAttribute<ComVisibleAttribute>() != null
-                && !type.GetCustomAttribute<ComVisibleAttribute>()!.Value))
-            {
-                return false;
-            }
+            return type.GetCustomAttribute<ComVisibleAttribute>()?.Value ?? false;
         }
-        return true;
     }
 
     internal static Type GetUnderlayingType(this Type type)
@@ -203,6 +213,40 @@ internal static class Extensions
             returnType = returnType.GetElementType();
         }
         return returnType;
+    }
+
+    internal static ClassInterfaceType GetComClassInterfaceType(this Type type)
+    {
+        if (type.IsGenericType)
+        {
+            return ClassInterfaceType.None;
+        }
+        var baseType = type.BaseType;
+        while (baseType != null)
+        {
+            if (baseType.IsGenericType)
+            {
+                return ClassInterfaceType.None;
+            }
+            baseType = baseType.BaseType;
+        }
+
+        //skip ClassSupportsIClassX check, it is not implemented yet
+
+        var defaultClassInterfaceType = type.Assembly.GetCustomAttribute<ClassInterfaceAttribute>()?.Value ?? ClassInterfaceType.AutoDispatch;
+        return type.GetCustomAttribute<ClassInterfaceAttribute>()?.Value ?? defaultClassInterfaceType;
+    }
+
+    internal static bool IsDelegate(this Type type)
+    {
+        return type.BaseType?.Equals(typeof(MulticastDelegate)) ?? false;
+    }
+
+    internal static bool IsSharedByGenericInstantiations(this Type type)
+    {
+        return type.GetGenericArguments().Where(t => !t.IsGenericParameter &&
+            (t.FullName == "System.__Canon" ||
+            (t.IsGenericType && t.IsSharedByGenericInstantiations()))).Any();
     }
 
     internal static IEnumerable<T> GetCustomAttributesRecursive<T>(this Type element) where T : Attribute
@@ -239,5 +283,104 @@ internal static class Extensions
             });
         }
         return result;
+    }
+
+    internal static Type? GetComPlusParentType(this Type type)
+    {
+        var parentType = type.BaseType;
+        if (parentType != null && parentType.IsImport)
+        {
+            if (parentType.IsProjectedFromWinRT())
+            {
+                // skip all Com Import classes
+                do
+                {
+                    parentType = parentType.BaseType;
+                    Debug.Assert(parentType != null);
+                } while (parentType!.IsImport);
+
+                // Now we have either System.__ComObject or WindowsRuntime.RuntimeClass
+                if (parentType.FullName != "System.__ComObject")
+                {
+                    return parentType;
+                }
+            }
+            else
+            {
+                // Skip the single ComImport class we expect
+                Debug.Assert(parentType.BaseType != null);
+                parentType = parentType.BaseType;
+            }
+            Debug.Assert(!parentType!.IsImport);
+
+            // Skip over System.__ComObject, expect System.MarshalByRefObject
+            parentType = parentType.BaseType;
+            Debug.Assert(parentType != null);
+            Debug.Assert(parentType!.IsMarshalByRef);
+            Debug.Assert(parentType.BaseType != null);
+            Debug.Assert(parentType.BaseType!.Equals(typeof(object)));
+        }
+        return parentType;
+    }
+
+    internal static TDelegate CreateDelegate<TDelegate>(this MethodInfo mi, object? obj)
+        where TDelegate : Delegate
+    {
+        return (TDelegate)mi.CreateDelegate(typeof(TDelegate), obj);
+    }
+
+    private class BlobReaderContext : CriticalFinalizerObject, IDisposable
+    {
+        readonly PEReader _peReader;
+        private int _disposedValue;
+
+        public BlobReaderContext(PEReader peReader)
+        {
+            _peReader = peReader;
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (Interlocked.Exchange(ref _disposedValue, 1) == 0)
+            {
+                _peReader.Dispose();
+            }
+        }
+
+        ~BlobReaderContext()
+        {
+            Dispose(disposing: false);
+        }
+
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+    }
+
+    internal static BlobReader GetBlobReaderFromByteArray(byte[] array, out IDisposable? blobReaderContext)
+    {
+        //HINT: PEReader doesn't read anything here, it is only used to convert
+        //byte array to a BlobReader with the help of public APIs instead of
+        //reflection over internals or using unsafe code.
+        PEReader peReader = new(array.ToImmutableArray());
+        blobReaderContext = new BlobReaderContext(peReader);
+        IDisposable? disposeOnException = null;
+        try
+        {
+            var block = peReader.GetEntireImage();
+            return block.GetReader();
+        }
+        catch
+        {
+            (disposeOnException, blobReaderContext) =
+                (blobReaderContext, disposeOnException);
+            throw;
+        }
+        finally
+        {
+            disposeOnException?.Dispose();
+        }
     }
 }

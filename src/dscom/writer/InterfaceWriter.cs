@@ -35,7 +35,7 @@ internal abstract class InterfaceWriter : TypeWriter
 
     public abstract Guid BaseInterfaceGuid { get; }
 
-    protected List<MethodWriter?> MethodWriters { get; } = new();
+    protected internal List<MethodWriter> MethodWriters { get; } = new();
 
     private ITypeInfo? BaseTypeInfo { get; set; }
 
