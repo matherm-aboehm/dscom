@@ -120,6 +120,9 @@ public struct HRESULT
     public const int S_OK = unchecked(0x00000000);
 
     [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
+    public const int E_POINTER = unchecked((int)0x80004003);
+
+    [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
     public const int E_FAIL = unchecked((int)0x80004005);
 
     [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
