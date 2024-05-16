@@ -14,6 +14,13 @@
 
 using System.ComponentModel;
 using System.Reflection;
+using System.Reflection.Metadata;
+
+#if NETFRAMEWORK || NETSTANDARD
+using System.Buffers;
+using System.Collections.Immutable;
+using System.Reflection.PortableExecutable;
+#endif
 
 namespace dSPACE.Runtime.InteropServices;
 
@@ -71,4 +78,69 @@ public static class AssemblyExtensions
             return e.Types.Where(t => t is not null)!;
         }
     }
+
+    internal static unsafe MetadataReader GetMetadataReader(this Assembly assembly)
+    {
+        if (assembly.ReflectionOnly &&
+            assembly.ManifestModule is IReflectionOnlyModuleExtension extendedROModule)
+        {
+            return extendedROModule.Reader;
+        }
+        else if (assembly.TryGetRawMetadata(out var matadataBlob, out var len))
+        {
+            return new MetadataReader(matadataBlob, len);
+        }
+        throw new InvalidOperationException($"Assembly {assembly} with Type {assembly.GetType()} doesn't provide metadata.");
+    }
+
+    // new API is only available since .NET Core 2.2, see GitHub issue:
+    //https://github.com/dotnet/runtime/issues/15017
+    // provide a similar implementation for everything older by using internal GetRawBytes from RuntimeAssembly
+#if NETFRAMEWORK || NETSTANDARD
+    private static readonly MethodInfo? _miGetRawBytes = typeof(object).Assembly.GetType().GetMethod("GetRawBytes", BindingFlags.NonPublic | BindingFlags.Instance);
+    private static readonly Delegate? _getRawBytes = _miGetRawBytes?.CreateDelegate(typeof(Func<,>).MakeGenericType(_miGetRawBytes.DeclaringType!, typeof(byte[])), null);
+    private static readonly Dictionary<Assembly, (ReadOnlyMemory<byte> mem, MemoryHandle handle)> _rawMetadataHandlesForAssembly = new();
+    private static int _cleanUpOnShutdownRegistered;
+    private static void RegisterCleanupMemoryHandlesOnAppDomainUnload()
+    {
+        if (Interlocked.Exchange(ref _cleanUpOnShutdownRegistered, 1) == 0)
+        {
+            AppDomain.CurrentDomain.DomainUnload += static (sender, e) =>
+            {
+                foreach (var (_, (_, handle)) in _rawMetadataHandlesForAssembly)
+                {
+                    handle.Dispose();
+                }
+            };
+        }
+    }
+    internal static unsafe bool TryGetRawMetadata(this Assembly assembly, out byte* blob, out int length)
+    {
+        if (assembly is null)
+        {
+            throw new ArgumentNullException(nameof(assembly));
+        }
+        if (_getRawBytes is null)
+        {
+            throw new PlatformNotSupportedException($"GetRawBytes is missing in Type {typeof(object).Assembly.GetType()}");
+        }
+        if (assembly.GetType() != typeof(object).Assembly.GetType())
+        {
+            throw new ArgumentOutOfRangeException(nameof(assembly), $"Assembly must be of Type {typeof(object).Assembly.GetType()} but is {assembly.GetType()}");
+        }
+        RegisterCleanupMemoryHandlesOnAppDomainUnload();
+        if (!_rawMetadataHandlesForAssembly.TryGetValue(assembly, out var metadataHandle))
+        {
+            var assemblyBytes = (byte[])_getRawBytes.DynamicInvoke(assembly)!;
+            using PEReader reader = new(assemblyBytes.ToImmutableArray());
+            var metadataBlock = reader.GetMetadata();
+            var metadataBytes = metadataBlock.GetContent();
+            var memory = metadataBytes.AsMemory();
+            _rawMetadataHandlesForAssembly.Add(assembly, metadataHandle = (memory, memory.Pin()));
+        }
+        blob = (byte*)metadataHandle.handle.Pointer;
+        length = metadataHandle.mem.Length;
+        return true;
+    }
+#endif
 }
