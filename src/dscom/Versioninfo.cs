@@ -22,20 +22,20 @@ internal struct Versioninfo
     /// <summary>
     /// Major Version.   
     /// </summary>
-    public short MajorVersion;
+    public ushort MajorVersion;
 
     /// <summary>
     /// Minor Version.
     /// </summary>
-    public short MinorVersion;
+    public ushort MinorVersion;
 
     /// <summary>
     /// Build Number.
     /// </summary>
-    public short BuildNumber;
+    public ushort BuildNumber;
 
     /// <summary>
     /// Revision Number.
     /// </summary>
-    public short RevisionNumber;
+    public ushort RevisionNumber;
 };
