@@ -268,7 +268,7 @@ public static class ConsoleApp
 
                 if (options.ShouldEmbed())
                 {
-                    ExportTypeLibraryAfterExport(options, weakRef);
+                    EmbedTypeLibraryAfterExport(options, weakRef);
                 }
 
                 _ = RemoveWeakReference(weakRef);
@@ -301,6 +301,7 @@ public static class ConsoleApp
             asmPaths = asmPaths.Prepend(dir).ToArray();
         }
 
+        // Is disposed at the end of the method
         using var assemblyResolver = new AssemblyResolver(asmPaths);
         weakRef = new WeakReference(assemblyResolver, trackResurrection: true);
         if (!File.Exists(options.Assembly))
@@ -311,6 +312,16 @@ public static class ConsoleApp
         var assembly = assemblyResolver.LoadROAssembly(options.Assembly);
 
         ExportTypeLibraryImpl(assembly, options);
+
+        // Static cached data of reflection-only type objects hold
+        // strong references to MetadataLoadContext, which then holds
+        // a strong reference to AssemblyResolver, so it can't be collected
+        // until cached data is cleared.
+        // For more info about GC diagnostics, see: 
+        //https://github.com/Maoni0/mem-doc/blob/master/doc/.NETMemoryPerformanceAnalysis.md#faq-2
+        //https://learn.microsoft.com/en-us/dotnet/core/diagnostics/sos-debugging-extension
+        //https://github.com/dotnet/runtime/issues/76303
+        MarshalExtension.ClearCaches();
     }
 
     private static void ExportTypeLibraryImpl(
@@ -406,7 +417,7 @@ public static class ConsoleApp
         return 1;
     }
 
-    private static void ExportTypeLibraryAfterExport(TypeLibConverterOptions options, WeakReference weakRef)
+    private static void EmbedTypeLibraryAfterExport(TypeLibConverterOptions options, WeakReference weakRef)
     {
         if (!RemoveWeakReference(weakRef))
         {
