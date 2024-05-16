@@ -32,6 +32,7 @@
     <AssemblyOriginatorKeyFile>dscom.snk</AssemblyOriginatorKeyFile>
     <Deterministic>true</Deterministic>
     <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
@@ -57,6 +58,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.Win32.Registry" Version="4.*" Condition="'$(TargetFramework)' == 'netcoreapp3.1' or '$(TargetFramework)' == 'netstandard2.0'" />
     <PackageReference Include="System.Reflection.Emit" Version="4.*" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
+    <PackageReference Include="System.Reflection.Metadata" Version="5.*" Condition="'$(TargetFramework)' == 'netstandard2.0' or '$(TargetFramework)' == 'net48'" />
     <PackageReference Include="System.Runtime" Version="4.*" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
     <PackageReference Include="System.Runtime.InteropServices" Version="4.*" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
     <None Include="packageIcon.png" Pack="true" PackagePath="\" />
