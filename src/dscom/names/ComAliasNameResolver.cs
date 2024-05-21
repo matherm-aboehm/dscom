@@ -24,7 +24,7 @@ internal sealed class ComAliasNameResolver : INameResolver
 
     public ComAliasNameResolver(Assembly assembly)
     {
-        var comVisibleTypes = assembly.GetLoadableTypes().Where(t => t.IsPublic && t.GetCustomAttribute<ComVisibleAttribute>() != null);
+        var comVisibleTypes = assembly.GetLoadableTypes().Where(t => (t.IsPublic || t.IsNestedPublicRecursive()) && t.GetCustomAttribute<ComVisibleAttribute>() != null);
         var types = comVisibleTypes
             .Where(t => t.GetCustomAttribute<ComAliasAttribute>() != null)
             .ToDictionary(t => t as object, t => t.GetCustomAttribute<ComAliasAttribute>()?.Alias ?? string.Empty)
