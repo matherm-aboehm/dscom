@@ -92,7 +92,7 @@ internal sealed class DispatchIdCreator
         var getEnumeratorItem = _dispIds.FirstOrDefault(z => z.MemberInfo.Name.Equals("GetEnumerator", StringComparison.Ordinal));
         if (getEnumeratorItem != null && getEnumeratorItem.MemberInfo is MethodInfo methodInfo)
         {
-            if (methodInfo.ReturnType == typeof(IEnumerator) && !getEnumeratorItem.ExplicitId.HasValue)
+            if (methodInfo.ReturnType.Equals(typeof(IEnumerator)) && !getEnumeratorItem.ExplicitId.HasValue)
             {
                 getEnumeratorItem.ExplicitId = Constants.DISPID_NEWENUM;
             }

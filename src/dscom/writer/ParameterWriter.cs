@@ -150,7 +150,7 @@ internal sealed class ParameterWriter : ElemDescBasedWriter
             };
         }
         else if (TypeProvider.MarshalAsAttribute != null && TypeProvider.MarshalAsAttribute.Value == UnmanagedType.LPStruct &&
-            (Type == typeof(Guid)))
+            Type.Equals(typeof(Guid)))
         {
             //add out parameter flag in this case, and only this case
             IDLFlags |= IDLFLAG.IDLFLAG_FOUT;

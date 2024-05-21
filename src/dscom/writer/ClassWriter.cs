@@ -102,7 +102,7 @@ internal sealed class ClassWriter : TypeWriter
                     .ThrowIfFailed($"Failed to add interface {currentInterface.Name} to {SourceType}.");
 
                 //check for attributation
-                if (defaultInterfaceType != null && defaultInterfaceType == currentInterface)
+                if (defaultInterfaceType != null && defaultInterfaceType.Equals(currentInterface))
                 {
                     TypeInfo.SetImplTypeFlags(index, IMPLTYPEFLAGS.IMPLTYPEFLAG_FDEFAULT)
                         .ThrowIfFailed($"Failed to set IMPLTYPEFLAGS.IMPLTYPEFLAG_FDEFAULT for {currentInterface.Name}.");
