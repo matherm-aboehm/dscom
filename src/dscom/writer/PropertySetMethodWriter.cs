@@ -29,7 +29,7 @@ internal sealed class PropertySetMethodWriter : PropertyMethodWriter
         {
             if (MethodInfo.GetParameters().Any(p =>
              {
-                 return p.ParameterType == typeof(object) ||
+                 return p.ParameterType.Equals(typeof(object)) ||
                  p.ParameterType.ToString() == typeof(IDispatch).FullName ||
                      p.ParameterType.IsInterface;
              }))

@@ -54,7 +54,7 @@ internal class MethodWriter : BaseWriter
 
     protected virtual short GetParametersCount()
     {
-        var retVal = (short)(UseHResultAsReturnValue && MethodInfo.ReturnType != typeof(void) ?
+        var retVal = (short)(UseHResultAsReturnValue && !MethodInfo.ReturnType.Equals(typeof(void)) ?
                 MethodInfo.GetParameters().Length + 1 :
                 MethodInfo.GetParameters().Length);
         return retVal;
@@ -225,7 +225,7 @@ internal class MethodWriter : BaseWriter
 
         MethodInfo.GetParameters().ToList().ForEach(p => names.Add(Context.NameResolver.GetMappedName(p, p.Name ?? string.Empty) ?? string.Empty));
 
-        if (UseHResultAsReturnValue && MethodInfo.ReturnType != typeof(void))
+        if (UseHResultAsReturnValue && !MethodInfo.ReturnType.Equals(typeof(void)))
         {
             names.Add("pRetVal");
         }
