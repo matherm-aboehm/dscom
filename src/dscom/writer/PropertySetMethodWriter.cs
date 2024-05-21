@@ -32,7 +32,7 @@ internal sealed class PropertySetMethodWriter : PropertyMethodWriter
                  var type = p.ParameterType;
 
                  // Object is not 'IsClass'
-                 if (type == typeof(object))
+                 if (type.Equals(typeof(object)))
                  {
                      return true;
                  }
@@ -40,6 +40,13 @@ internal sealed class PropertySetMethodWriter : PropertyMethodWriter
                  // every class except special ones (e.g. String) or SAFEARRAY
                  // are handles as references
                  if (type.IsClass && !type.IsSpecialHandledClass() && !type.IsArray)
+                 {
+                     return true;
+                 }
+
+                 // every type with the same full name of our special
+                 // IDispatch interface is handled as reference
+                 if (type.ToString() == typeof(IDispatch).FullName)
                  {
                      return true;
                  }
