@@ -217,7 +217,7 @@ internal static class MarshalExtension
         {
             return false;
         }
-        if (!type.IsPublic)
+        if (!type.IsPublic && !type.IsNestedPublicRecursive())
         {
             return false;
         }
