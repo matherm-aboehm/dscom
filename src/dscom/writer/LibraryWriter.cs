@@ -16,6 +16,7 @@
 
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace dSPACE.Runtime.InteropServices.Writer;
 
@@ -30,7 +31,7 @@ internal sealed class LibraryWriter : BaseWriter
 
     private List<TypeWriter> TypeWriters { get; } = new();
 
-    private Dictionary<Type, string> UniqueNames { get; } = new();
+    private Dictionary<string, object> UniqueNames { get; } = new();
 
     public override void Create()
     {
@@ -110,7 +111,7 @@ internal sealed class LibraryWriter : BaseWriter
                 continue;
             }
 
-            if (!type.IsPublic && !type.IsNestedPublic)
+            if (!type.IsPublic && !type.IsNestedPublicRecursive())
             {
                 continue;
             }
@@ -205,29 +206,85 @@ internal sealed class LibraryWriter : BaseWriter
         TypeWriters.AddRange(classInterfaceWriters);
     }
 
+    private static string GetFullName(Type type)
+    {
+        if (type.Namespace is null)
+        {
+            return type.Name;
+        }
+        StringBuilder namesp = new(type.Namespace);
+        namesp = namesp.Replace(".", "_");
+        List<string> nestedTypeNames = new();
+        for (var parentType = type.IsNested ? type.DeclaringType : null;
+            parentType != null;
+            parentType = parentType.IsNested ? parentType.DeclaringType : null)
+        {
+            nestedTypeNames.Add(parentType.Name);
+        }
+        nestedTypeNames.Reverse();
+        foreach (var name in nestedTypeNames)
+        {
+            namesp.Append('_');
+            namesp.Append(name);
+        }
+        return $"{namesp}_{type.Name}";
+    }
+
     private void UpdateUniqueNames(Type type)
     {
-        var searchExistingType = UniqueNames.FirstOrDefault(t => t.Key.Name == type.Name);
-        if (searchExistingType.Key != null)
+        if (UniqueNames.TryGetValue(type.Name, out var unique))
         {
-            var namesp = searchExistingType.Key.Namespace ?? string.Empty;
-            namesp = namesp.Replace(".", "_");
-            UniqueNames[searchExistingType.Key] = $"{namesp}_{searchExistingType.Key.Name}";
+            if (unique is not Dictionary<Type, string> ambiguousTypes)
+            {
+                var (searchExistingType, _) = ((Type, string))unique;
+                var fullNameExistingType = GetFullName(searchExistingType);
+                ambiguousTypes = new()
+                {
+                    { searchExistingType, fullNameExistingType }
+                };
+                UniqueNames[type.Name] = ambiguousTypes;
+                if (!UniqueNames.ContainsKey(fullNameExistingType))
+                {
+                    UniqueNames.Add(fullNameExistingType, (searchExistingType, fullNameExistingType));
+                }
+            }
 
-            namesp = type.Namespace ?? string.Empty;
-            namesp = namesp.Replace(".", "_");
-            UniqueNames.Add(type, $"{namesp}_{type.Name}");
+            var fullName = GetFullName(type);
+            if (!UniqueNames.ContainsKey(fullName))
+            {
+                ambiguousTypes.Add(type, fullName);
+                UniqueNames.Add(fullName, (type, fullName));
+            }
+            else
+            {
+                for (var i = 1; i < int.MaxValue; i++)
+                {
+                    var uniqueName = $"{fullName}{i}";
+                    if (!UniqueNames.ContainsKey(uniqueName))
+                    {
+                        ambiguousTypes.Add(type, uniqueName);
+                        UniqueNames.Add(uniqueName, (type, uniqueName));
+                        break;
+                    }
+                }
+            }
         }
         else
         {
-            UniqueNames.Add(type, type.Name);
+            UniqueNames.Add(type.Name, (type, type.Name));
         }
     }
 
-    internal string GetUniqueTypeName(Type type)
+    //HINT: Need to be nullable string because of using struct types with default values, see:
+    //https://learn.microsoft.com/en-us/dotnet/csharp/nullable-references#known-pitfalls
+    internal string? GetUniqueTypeName(Type type)
     {
-        var searchExistingType = UniqueNames.FirstOrDefault(t => t.Key.Name == type.Name && t.Key.Namespace == type.Namespace);
-        return searchExistingType.Value;
+        return UniqueNames.TryGetValue(type.Name, out var unique) ?
+            (unique is (Type, string name) ? name :
+                (unique is Dictionary<Type, string> ambiguousTypes &&
+                 ambiguousTypes.TryGetValue(type, out var searchExistingType) ?
+                    searchExistingType : null))
+            : null;
     }
 
     protected override void Dispose(bool disposing)

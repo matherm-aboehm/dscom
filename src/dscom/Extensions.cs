@@ -249,6 +249,15 @@ internal static class Extensions
             (t.IsGenericType && t.IsSharedByGenericInstantiations())));
     }
 
+    internal static bool IsNestedPublicRecursive(this Type type)
+    {
+        while (type.IsNestedPublic)
+        {
+            type = type.DeclaringType!;
+        }
+        return type.IsPublic;
+    }
+
     internal static IEnumerable<T> GetCustomAttributesRecursive<T>(this Type element) where T : Attribute
     {
         var result = element.GetCustomAttributes<T>();
