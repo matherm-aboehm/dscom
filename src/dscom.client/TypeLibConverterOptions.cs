@@ -41,4 +41,14 @@ public class TypeLibConverterOptions : TypeLibConverterSettings
     /// Gets or sets whether to generate missing TLB files for dependent assemblies.  
     /// </summary>
     public bool? CreateMissingDependentTLBs { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets wether the target platform bitness is 32-bit.
+    /// </summary>
+    public bool? Win32 { get => !Create64BitTlb; set => Create64BitTlb = !value; }
+
+    /// <summary>
+    /// Gets or sets wether the target platform bitness is 64-bit.
+    /// </summary>
+    public bool? Win64 { get => Create64BitTlb; set => Create64BitTlb = value; }
 }
