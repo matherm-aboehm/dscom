@@ -19,15 +19,17 @@ namespace dSPACE.Runtime.InteropServices.Writer;
 
 internal class ElemDescBasedWriter : BaseWriter
 {
-    public ElemDescBasedWriter(Type type, ICustomAttributeProvider attributeProvider, Type parentType, ICreateTypeInfo2 typeInfo, WriterContext context) : base(context)
+    public ElemDescBasedWriter(Type type, ICustomAttributeProvider attributeProvider, Type parentType, TypeWriter typeWriter, WriterContext context) : base(context)
     {
+        _typeWriter = typeWriter;
         Type = type;
         ParentType = parentType;
         TypeProvider = new TypeProvider(context, attributeProvider, false);
-        TypeInfo = typeInfo;
     }
 
-    private ICreateTypeInfo2 TypeInfo { get; set; }
+    private readonly TypeWriter _typeWriter;
+
+    private ICreateTypeInfo2 TypeInfo => _typeWriter.TypeInfo;
 
     protected bool _isValid = true;
 
