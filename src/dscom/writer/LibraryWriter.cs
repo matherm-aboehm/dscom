@@ -136,12 +136,12 @@ internal sealed class LibraryWriter : BaseWriter
                 typeWriter = interfaceTypeAttribute != null
                     ? interfaceTypeAttribute.Value switch
                     {
-                        ComInterfaceType.InterfaceIsDual => new DualInterfaceWriter(type, this, Context),
-                        ComInterfaceType.InterfaceIsIDispatch => new DispInterfaceWriter(type, this, Context),
-                        ComInterfaceType.InterfaceIsIUnknown => new IUnknownInterfaceWriter(type, this, Context),
+                        ComInterfaceType.InterfaceIsDual => WriterFactory.CreateInstance(new DualInterfaceWriter.FactoryArgs(type, this, Context)),
+                        ComInterfaceType.InterfaceIsIDispatch => WriterFactory.CreateInstance(new DispInterfaceWriter.FactoryArgs(type, this, Context)),
+                        ComInterfaceType.InterfaceIsIUnknown => WriterFactory.CreateInstance(new IUnknownInterfaceWriter.FactoryArgs(type, this, Context)),
                         _ => throw new NotSupportedException($"{interfaceTypeAttribute.Value} not supported"),
                     }
-                    : new DualInterfaceWriter(type, this, Context);
+                    : WriterFactory.CreateInstance(new DualInterfaceWriter.FactoryArgs(type, this, Context));
             }
             else if (type.IsEnum)
             {
@@ -196,7 +196,7 @@ internal sealed class LibraryWriter : BaseWriter
                 {
                     if (typeWriter is ClassWriter classWriter)
                     {
-                        var classInterfaceWriter = new ClassInterfaceWriter(classInterfaceType, type!, this, Context);
+                        var classInterfaceWriter = WriterFactory.CreateInstance(new ClassInterfaceWriter.FactoryArgs(classInterfaceType, type!, this, Context));
                         classInterfaceWriters.Add(classInterfaceWriter);
                         classWriter.ClassInterfaceWriter = classInterfaceWriter;
                     }

@@ -18,7 +18,16 @@ namespace dSPACE.Runtime.InteropServices.Writer;
 
 internal class DualInterfaceWriter : InterfaceWriter
 {
-    public DualInterfaceWriter(Type sourceType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
+    internal readonly record struct FactoryArgs(Type SourceType, LibraryWriter LibraryWriter, WriterContext Context)
+        : WriterFactory.IWriterArgsFor<DualInterfaceWriter>
+    {
+        DualInterfaceWriter WriterFactory.IWriterArgsFor<DualInterfaceWriter>.CreateInstance()
+        {
+            return new DualInterfaceWriter(SourceType, LibraryWriter, Context);
+        }
+    }
+
+    protected DualInterfaceWriter(Type sourceType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
     {
         TypeFlags = TYPEFLAGS.TYPEFLAG_FDUAL | TYPEFLAGS.TYPEFLAG_FDISPATCHABLE | TYPEFLAGS.TYPEFLAG_FOLEAUTOMATION;
         TypeKind = TYPEKIND.TKIND_INTERFACE;
