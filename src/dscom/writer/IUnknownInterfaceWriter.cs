@@ -33,7 +33,7 @@ internal sealed class IUnknownInterfaceWriter : InterfaceWriter
         TypeKind = TYPEKIND.TKIND_INTERFACE;
         FuncKind = FUNCKIND.FUNC_PUREVIRTUAL;
 
-        VTableOffsetUserMethodStart = 3 * IntPtr.Size;
+        VTableOffsetUserMethodStart = 3 * PtrSize;
         ComInterfaceType = ComInterfaceType.InterfaceIsIUnknown;
         UseHResultAsReturnValue = true;
     }

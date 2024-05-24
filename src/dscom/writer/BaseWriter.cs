@@ -21,6 +21,11 @@ internal abstract class BaseWriter : IDisposable
     protected BaseWriter(WriterContext context)
     {
         Context = context;
+        PtrSize = IntPtr.Size;
+        if (context.Options.Create64BitTlb.HasValue)
+        {
+            PtrSize = context.Options.Create64BitTlb.Value ? 8 : 4;
+        }
     }
 
     ~BaseWriter()
@@ -33,6 +38,8 @@ internal abstract class BaseWriter : IDisposable
     private List<IntPtr> PtrToRelease { get; } = new();
 
     public WriterContext Context { get; }
+
+    public int PtrSize { get; }
 
     public abstract void Create();
 

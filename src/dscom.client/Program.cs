@@ -16,6 +16,7 @@ using dscom::dSPACE.Runtime.InteropServices;
 
 using System.CommandLine;
 using System.CommandLine.NamingConventionBinder;
+using System.CommandLine.Parsing;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -43,8 +44,18 @@ public static class ConsoleApp
             new Option<Guid>("--overridetlbid", "/overridetlbid") { Description = "Overwrites the library id" },
             new Option<bool?>("--createmissingdependenttlbs", "/createmissingdependenttlbs") { Description = "Generate missing type libraries for referenced assemblies. (default true)" },
             new Option<string?>("--embed", "/embed") { DefaultValueFactory =_ =>  TypeLibConverterOptions.NotSpecifiedViaCommandLineArgumentsDefault, Description = "Embeds type library into the assembly. (default: false)", Arity = ArgumentArity.ZeroOrOne },
-            new Option<ushort>("--index", "/index") { DefaultValueFactory = _ => 1, Description = "If the switch --embed is specified, the index indicates the resource ID to be used for the embedded type library. Must be a number between 1 and 65535. Ignored if --embed not present. (default 1)" }
+            new Option<ushort>("--index", "/index") { DefaultValueFactory = _ => 1, Description = "If the switch --embed is specified, the index indicates the resource ID to be used for the embedded type library. Must be a number between 1 and 65535. Ignored if --embed not present. (default 1)" },
+            new Option<bool?>("--win32", "/win32") { Description = "When compiling on a 64-bit computer, this option specifies that a 32-bit type library is generated." },
+            new Option<bool?>("--win64", "/win64") { Description = "When compiling on a 32-bit computer, this option specifies that a 64-bit type library is generated." },
         };
+
+        tlbexportCommand.Validators.Add(result =>
+        {
+            if (result.Children.Count(s => s is OptionResult o && o.Option.Name is "--win32" or "--win64") > 1)
+            {
+                result.AddError("The options --win32 and --win64 are mutual exclusive.");
+            }
+        });
 
         var tlbdumpCommand = new Command("tlbdump", "Dump a type library")
         {
