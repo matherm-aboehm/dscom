@@ -18,7 +18,16 @@ namespace dSPACE.Runtime.InteropServices.Writer;
 
 internal sealed class PropertyGetMethodWriter : PropertyMethodWriter
 {
-    public PropertyGetMethodWriter(InterfaceWriter interfaceWriter, MethodInfo methodInfo, WriterContext context, string methodName) : base(interfaceWriter, methodInfo, context, methodName)
+    internal new readonly record struct FactoryArgs(InterfaceWriter InterfaceWriter, PropertyInfo? PropertyInfo, MethodInfo MethodInfo, WriterContext Context, string MethodName)
+        : WriterFactory.IWriterArgsFor<PropertyGetMethodWriter>
+    {
+        PropertyGetMethodWriter WriterFactory.IWriterArgsFor<PropertyGetMethodWriter>.CreateInstance()
+        {
+            return new PropertyGetMethodWriter(InterfaceWriter, PropertyInfo, MethodInfo, Context, MethodName);
+        }
+    }
+
+    private PropertyGetMethodWriter(InterfaceWriter interfaceWriter, PropertyInfo? propertyInfo, MethodInfo methodInfo, WriterContext context, string methodName) : base(interfaceWriter, propertyInfo, methodInfo, context, methodName)
     {
         InvokeKind = INVOKEKIND.INVOKE_PROPERTYGET;
     }

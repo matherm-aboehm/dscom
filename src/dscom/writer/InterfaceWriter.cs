@@ -12,20 +12,41 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using System.Diagnostics;
 using System.Globalization;
-using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace dSPACE.Runtime.InteropServices.Writer;
 
-internal abstract class InterfaceWriter : TypeWriter
+internal abstract class InterfaceWriter : TypeWriter, WriterFactory.IProvidesFinishCreateInstance
 {
-    public InterfaceWriter(Type sourceType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
+    protected InterfaceWriter(Type sourceType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
     {
         VTableOffsetUserMethodStart = 7 * IntPtr.Size;
+        DispatchIdCreator = new DispatchIdCreator(this);
     }
 
-    public DispatchIdCreator? DispatchIdCreator { get; protected set; }
+    protected virtual void FinishCreateInstance()
+    {
+        // Base types from interfaces should be pre-defined in stdole2 and not custom types.
+        // Custom types can only be resolved after TypeWriter.CreateTypeInfo() was called,
+        // but CreateMethodWriters() needs type info here for duplicate name checking.
+        BaseTypeInfo = Context.TypeInfoResolver.ResolveTypeInfo(BaseInterfaceGuid);
+        Debug.Assert(BaseTypeInfo is not null);
+
+        CreateMethodWriters();
+
+        // Check all DispIDs
+        // Handle special IDs like 0 or -4, and try to fix duplicate DispIds if possible.
+        DispatchIdCreator.NormalizeIds();
+    }
+
+    void WriterFactory.IProvidesFinishCreateInstance.FinishCreateInstance()
+    {
+        FinishCreateInstance();
+    }
+
+    public DispatchIdCreator DispatchIdCreator { get; protected set; }
 
     public int VTableOffsetUserMethodStart { get; set; }
 
@@ -46,7 +67,6 @@ internal abstract class InterfaceWriter : TypeWriter
 
     public override void CreateTypeInheritance()
     {
-        BaseTypeInfo = Context.TypeInfoResolver.ResolveTypeInfo(BaseInterfaceGuid);
         if (BaseTypeInfo != null)
         {
             TypeInfo.AddRefTypeInfo(BaseTypeInfo, out var phRefType)
@@ -58,7 +78,6 @@ internal abstract class InterfaceWriter : TypeWriter
 
     public override void Create()
     {
-        DispatchIdCreator = new DispatchIdCreator(this);
         Context.LogTypeExported($"Interface '{Name}' exported.");
 
         if (IsDisposed)
@@ -66,73 +85,63 @@ internal abstract class InterfaceWriter : TypeWriter
             throw new ObjectDisposedException(nameof(InterfaceWriter));
         }
 
-        CreateMethodWriters();
-
-        // Check all DispIDs
-        // Handle special IDs like 0 or -4, and try to fix duplicate DispIds if possible.
-        DispatchIdCreator.NormalizeIds();
-
         // Create all writer.
-        MethodWriters.ForEach(writer => writer?.Create());
+        var index = 0;
+        var functionIndex = 0;
+        foreach (var methodWriter in MethodWriters)
+        {
+            if (methodWriter.IsVisibleMethod)
+            {
+                methodWriter.FunctionIndex = functionIndex;
+                methodWriter.VTableOffset = VTableOffsetUserMethodStart + (index * IntPtr.Size);
+                methodWriter.Create();
+                functionIndex += methodWriter.IsValid ? 1 : 0;
+            }
+
+            // Increment the index for the VTableOffset
+            index++;
+        }
 
         TypeInfo.LayOut().ThrowIfFailed($"Failed to layout type {SourceType}.");
     }
 
-    private void CreateMethodWriters()
+    protected virtual void CreateMethodWriters()
     {
         var methods = SourceType.GetMethods().ToList();
         methods.Sort((a, b) => a.MetadataToken - b.MetadataToken);
 
         foreach (var method in methods)
         {
-            var numIdenticalNames = MethodWriters.Count(z => z is not null && z.IsVisibleMethod && (z.MemberInfo.Name == method.Name || z.MethodName.StartsWith(method.Name + "_", StringComparison.Ordinal)));
+            var methodName = method.Name;
+            var numIdenticalNames = MethodWriters.Count(z => z.IsVisibleMethod && (z.MemberInfo.Name == method.Name || z.MethodName.StartsWith(methodName + "_", StringComparison.Ordinal)));
 
-            numIdenticalNames += GetMethodNamesOfBaseTypeInfo(BaseTypeInfo).Count(z => z == method.Name || z.StartsWith(method.Name + "_", StringComparison.Ordinal));
+            numIdenticalNames += GetMethodNamesOfBaseTypeInfo(BaseTypeInfo).Count(z => z == methodName || z.StartsWith(methodName + "_", StringComparison.Ordinal));
 
-            var alternateName = numIdenticalNames == 0 ? method.Name : method.Name + "_" + (numIdenticalNames + 1).ToString(CultureInfo.InvariantCulture);
-            MethodWriter? methodWriter = null;
-            if ((method.Name.StartsWith("get_", StringComparison.Ordinal) || method.Name.StartsWith("set_", StringComparison.Ordinal)) && method.IsSpecialName)
+            var alternateName = numIdenticalNames == 0 ? methodName : methodName + "_" + (numIdenticalNames + 1).ToString(CultureInfo.InvariantCulture);
+            MethodWriter methodWriter;
+            if ((methodName.StartsWith("get_", StringComparison.Ordinal) || methodName.StartsWith("set_", StringComparison.Ordinal)) && method.IsSpecialName)
             {
                 var propertyInfo = method.DeclaringType!.GetProperties().First(p => p.GetGetMethod() == method || p.GetSetMethod() == method);
-                var comVisibleAttribute = propertyInfo.GetCustomAttribute<ComVisibleAttribute>();
-
-                if (comVisibleAttribute is null || comVisibleAttribute.Value)
+                alternateName = alternateName.Substring(4);
+                if (methodName.StartsWith("get_", StringComparison.Ordinal))
                 {
-                    alternateName = alternateName.Substring(4);
-                    if (method.Name.StartsWith("get_", StringComparison.Ordinal))
-                    {
-                        methodWriter = new PropertyGetMethodWriter(this, method, Context, alternateName);
-                    }
-                    else
-                    if (method.Name.StartsWith("set_", StringComparison.Ordinal))
-                    {
-                        methodWriter = new PropertySetMethodWriter(this, method, Context, alternateName);
-                    }
+                    methodWriter = WriterFactory.CreateInstance(new PropertyGetMethodWriter.FactoryArgs(this, propertyInfo, method, Context, alternateName));
+                }
+                else
+                {
+                    Debug.Assert(methodName.StartsWith("set_", StringComparison.Ordinal));
+                    methodWriter = WriterFactory.CreateInstance(new PropertySetMethodWriter.FactoryArgs(this, propertyInfo, method, Context, alternateName));
                 }
             }
             else
             {
-                var comVisibleAttribute = method.GetCustomAttribute<ComVisibleAttribute>();
-                if (comVisibleAttribute is null || comVisibleAttribute.Value)
-                {
-                    methodWriter = new(this, method, Context, alternateName);
-                }
+                methodWriter = WriterFactory.CreateInstance(new MethodWriter.FactoryArgs(this, method, Context, alternateName));
             }
 
             MethodWriters.Add(methodWriter);
-        }
-
-        var index = 0;
-        var functionIndex = 0;
-        foreach (var methodWriter in MethodWriters)
-        {
-            // A methodWriter can be null if ComVisible is false
-            if (methodWriter is not null)
+            if (methodWriter.IsVisibleMethod)
             {
-                methodWriter.FunctionIndex = functionIndex;
-                methodWriter.VTableOffset = VTableOffsetUserMethodStart + (index * IntPtr.Size);
                 DispatchIdCreator!.RegisterMember(methodWriter);
-                functionIndex += methodWriter.IsValid ? 1 : 0;
             }
             else
             {
@@ -140,9 +149,6 @@ internal abstract class InterfaceWriter : TypeWriter
                 // This offset is needed to keep the DispId in sync with the VTable and the behavior of tlbexp.
                 DispatchIdCreator!.GetNextFreeDispId();
             }
-
-            // Increment the index for the VTableOffset
-            index++;
         }
     }
 
@@ -186,7 +192,7 @@ internal abstract class InterfaceWriter : TypeWriter
     {
         if (MethodWriters != null)
         {
-            MethodWriters.ForEach(t => t?.Dispose());
+            MethodWriters.ForEach(t => t.Dispose());
             MethodWriters.Clear();
         }
 

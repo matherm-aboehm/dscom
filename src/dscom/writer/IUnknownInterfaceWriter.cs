@@ -18,7 +18,16 @@ namespace dSPACE.Runtime.InteropServices.Writer;
 
 internal sealed class IUnknownInterfaceWriter : InterfaceWriter
 {
-    public IUnknownInterfaceWriter(Type sourceType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
+    internal readonly record struct FactoryArgs(Type SourceType, LibraryWriter LibraryWriter, WriterContext Context)
+        : WriterFactory.IWriterArgsFor<IUnknownInterfaceWriter>
+    {
+        IUnknownInterfaceWriter WriterFactory.IWriterArgsFor<IUnknownInterfaceWriter>.CreateInstance()
+        {
+            return new IUnknownInterfaceWriter(SourceType, LibraryWriter, Context);
+        }
+    }
+
+    private IUnknownInterfaceWriter(Type sourceType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
     {
         TypeFlags = TYPEFLAGS.TYPEFLAG_FOLEAUTOMATION;
         TypeKind = TYPEKIND.TKIND_INTERFACE;
