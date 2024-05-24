@@ -18,7 +18,16 @@ namespace dSPACE.Runtime.InteropServices.Writer;
 
 internal sealed class DispInterfaceWriter : InterfaceWriter
 {
-    public DispInterfaceWriter(Type sourceType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
+    internal readonly record struct FactoryArgs(Type SourceType, LibraryWriter LibraryWriter, WriterContext Context)
+        : WriterFactory.IWriterArgsFor<DispInterfaceWriter>
+    {
+        DispInterfaceWriter WriterFactory.IWriterArgsFor<DispInterfaceWriter>.CreateInstance()
+        {
+            return new DispInterfaceWriter(SourceType, LibraryWriter, Context);
+        }
+    }
+
+    private DispInterfaceWriter(Type sourceType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
     {
         TypeFlags = TYPEFLAGS.TYPEFLAG_FDISPATCHABLE;
         TypeKind = TYPEKIND.TKIND_DISPATCH;

@@ -18,7 +18,7 @@ namespace dSPACE.Runtime.InteropServices.Writer;
 
 internal abstract class BaseWriter : IDisposable
 {
-    public BaseWriter(WriterContext context)
+    protected BaseWriter(WriterContext context)
     {
         Context = context;
     }

@@ -19,7 +19,16 @@ namespace dSPACE.Runtime.InteropServices.Writer;
 
 internal sealed class ClassInterfaceWriter : DualInterfaceWriter
 {
-    public ClassInterfaceWriter(ClassInterfaceType classInterfaceType, Type sourceType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
+    internal new readonly record struct FactoryArgs(ClassInterfaceType ClassInterfaceType, Type SourceType, LibraryWriter LibraryWriter, WriterContext Context)
+        : WriterFactory.IWriterArgsFor<ClassInterfaceWriter>
+    {
+        ClassInterfaceWriter WriterFactory.IWriterArgsFor<ClassInterfaceWriter>.CreateInstance()
+        {
+            return new ClassInterfaceWriter(ClassInterfaceType, SourceType, LibraryWriter, Context);
+        }
+    }
+
+    private ClassInterfaceWriter(ClassInterfaceType classInterfaceType, Type sourceType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
     {
         TypeFlags = TYPEFLAGS.TYPEFLAG_FDUAL | TYPEFLAGS.TYPEFLAG_FDISPATCHABLE | TYPEFLAGS.TYPEFLAG_FOLEAUTOMATION | TYPEFLAGS.TYPEFLAG_FHIDDEN;
         ClassInterfaceType = classInterfaceType;
@@ -35,6 +44,13 @@ internal sealed class ClassInterfaceWriter : DualInterfaceWriter
     public override void Create()
     {
         Context.LogTypeExported($"Class interface '{Name}' exported.");
+    }
+
+    protected override void CreateMethodWriters()
+    {
+        //TODO: re-implement this to include fake method writers for class fields.
+        //see: ComMTMemberInfoMap::SetupPropsForIClassX from CoreCLR\src\vm\commtmemberinfomap.cpp
+        base.CreateMethodWriters();
     }
 
     protected override Guid GetTypeGuid()
