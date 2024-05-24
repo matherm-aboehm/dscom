@@ -17,13 +17,16 @@ using System.Runtime.InteropServices;
 
 namespace dSPACE.Runtime.InteropServices.Writer;
 
-internal class PropertyMethodWriter : MethodWriter
+internal abstract class PropertyMethodWriter : MethodWriter
 {
     private readonly PropertyInfo? _propertyInfo;
-    public PropertyMethodWriter(InterfaceWriter interfaceWriter, MethodInfo methodInfo, WriterContext context, string methodName) : base(interfaceWriter, methodInfo, context, methodName)
+    protected PropertyMethodWriter(InterfaceWriter interfaceWriter, PropertyInfo? propertyInfo, MethodInfo methodInfo, WriterContext context, string methodName) : base(interfaceWriter, methodInfo, context, methodName)
     {
-        _propertyInfo = methodInfo.DeclaringType!.GetProperties().First(p => p.GetGetMethod() == methodInfo || p.GetSetMethod() == methodInfo);
-        MemberInfo = _propertyInfo!;
+        _propertyInfo = propertyInfo;
+        if (propertyInfo is not null)
+        {
+            MemberInfo = propertyInfo;
+        }
     }
 
     private bool? _isComVisible;
@@ -47,7 +50,9 @@ internal class PropertyMethodWriter : MethodWriter
     {
         var names = new List<string>();
         var propertyName = GetPropertyName();
-        propertyName = _propertyInfo != null ? Context.NameResolver.GetMappedName(_propertyInfo, propertyName) : null;
+        propertyName = _propertyInfo != null ?
+            Context.NameResolver.GetMappedName(_propertyInfo, propertyName) :
+            Context.NameResolver.GetMappedName(MethodInfo, propertyName);
         names.Add(propertyName!);
 
         if (InvokeKind == INVOKEKIND.INVOKE_PROPERTYGET)

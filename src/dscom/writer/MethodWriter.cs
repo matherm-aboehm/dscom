@@ -12,15 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#if NET5_0_OR_GREATER
+using System.Diagnostics.CodeAnalysis;
+#endif
 using System.Reflection;
 using System.Runtime.InteropServices;
 using FUNCFLAGS = System.Runtime.InteropServices.ComTypes.FUNCFLAGS;
 
 namespace dSPACE.Runtime.InteropServices.Writer;
 
-internal class MethodWriter : BaseWriter
+internal class MethodWriter : BaseWriter, WriterFactory.IProvidesFinishCreateInstance
 {
-    public MethodWriter(InterfaceWriter interfaceWriter, MethodInfo methodInfo, WriterContext context, string methodName) : base(context)
+    internal readonly record struct FactoryArgs(InterfaceWriter InterfaceWriter, MethodInfo MethodInfo, WriterContext Context, string MethodName)
+        : WriterFactory.IWriterArgsFor<MethodWriter>
+    {
+        MethodWriter WriterFactory.IWriterArgsFor<MethodWriter>.CreateInstance()
+        {
+            return new MethodWriter(InterfaceWriter, MethodInfo, Context, MethodName);
+        }
+    }
+
+    protected MethodWriter(InterfaceWriter interfaceWriter, MethodInfo methodInfo, WriterContext context, string methodName) : base(context)
     {
         InterfaceWriter = interfaceWriter;
         MethodInfo = methodInfo;
@@ -29,18 +41,42 @@ internal class MethodWriter : BaseWriter
         //switch off HResult transformation on method level
         var preserveSigAttribute = methodInfo.GetCustomAttribute<PreserveSigAttribute>();
         UseHResultAsReturnValue = preserveSigAttribute == null && interfaceWriter.UseHResultAsReturnValue;
+    }
 
+#if NET5_0_OR_GREATER
+    [MemberNotNull(nameof(MemberInfo))]
+#endif
+    protected virtual void FinishCreateInstance()
+    {
+        //HINT: The following type of initialization logic only works here, not in base ctor.
         // In case of a Property
-        MemberInfo ??= methodInfo;
+        MemberInfo ??= MethodInfo;
+        // So derived ctors can set MemberInfo (or something similiar) and everything else
+        // which is depending on it will then be initialized here after ctor completed.
 
         CreateParameterWriters();
+        // So as a conclusion, this or a derived class can only be partially constructed by
+        // its ctor and FinishCreateInstance() needs to be called immediately after ctor to
+        // finish the construction.
+    }
+
+    void WriterFactory.IProvidesFinishCreateInstance.FinishCreateInstance()
+    {
+        FinishCreateInstance();
     }
 
     public bool UseHResultAsReturnValue { get; private set; }
 
     public InterfaceWriter InterfaceWriter { get; }
 
-    public MemberInfo MemberInfo { get; protected set; }
+    //HINT: Cannot use NotNullAttribute in combination with nullable-ref type here,
+    // because older analyzers ignore it and still show warnings for null references.
+    // So make it non-null and initialize it to null with null! to remove the warning for
+    // constructors.
+    // Make sure to always call FinishCreateInstance after construction, so that it
+    // actually has a value after that and not just trick the analyzer.
+    //[NotNull]
+    public MemberInfo MemberInfo { get; protected set; } = null!;
 
     internal MethodInfo MethodInfo { get; }
 
@@ -109,17 +145,17 @@ internal class MethodWriter : BaseWriter
             ParameterWriters.Add(new ParameterWriter(this, MethodInfo.ReturnParameter, Context, true));
             ReturnParamWriter = new ParameterWriter(this, new HResultParamInfo(), Context, false);
         }
+    }
 
+    public override void Create()
+    {
         ReturnParamWriter!.Create();
 
         foreach (var paramWriter in ParameterWriters)
         {
             paramWriter.Create();
         }
-    }
 
-    public override void Create()
-    {
         var vTableOffset = VTableOffset;
         var funcIndex = FunctionIndex;
         if (funcIndex == -1)
