@@ -20,7 +20,7 @@ namespace dSPACE.Runtime.InteropServices.Writer;
 internal sealed class ParameterWriter : ElemDescBasedWriter
 {
     public ParameterWriter(MethodWriter methodWriter, ParameterInfo parameterInfo, WriterContext context, bool isTransformedOutParameter)
-    : base(parameterInfo.ParameterType, parameterInfo, methodWriter.MethodInfo.ReflectedType!, methodWriter.InterfaceWriter.TypeInfo, context)
+    : base(parameterInfo.ParameterType, parameterInfo, methodWriter.MethodInfo.ReflectedType!, methodWriter.InterfaceWriter, context)
     {
         _isTransformedOutParameter = isTransformedOutParameter;
         ParameterInfo = parameterInfo;
