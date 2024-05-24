@@ -16,6 +16,7 @@ using dscom::dSPACE.Runtime.InteropServices;
 
 using System.CommandLine;
 using System.CommandLine.NamingConventionBinder;
+using System.CommandLine.Parsing;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -43,8 +44,18 @@ public static class ConsoleApp
             new Option<Guid>(new[] {"--overridetlbid", "/overridetlbid"}, description: "Overwrites the library id"),
             new Option<bool?>(new[] {"--createmissingdependenttlbs", "/createmissingdependenttlbs"}, description: "Generate missing type libraries for referenced assemblies. (default true)"),
             new Option<string?>(new[] { "--embed", "/embed"}, () => TypeLibConverterOptions.NotSpecifiedViaCommandLineArgumentsDefault, description: "Embeds type library into the assembly. (default: false)") { Arity = ArgumentArity.ZeroOrOne },
-            new Option<ushort>(new[] {"--index", "/index"}, () => 1, description: "If the switch --embed is specified, the index indicates the resource ID to be used for the embedded type library. Must be a number between 1 and 65535. Ignored if --embed not present. (default 1)")
+            new Option<ushort>(new[] {"--index", "/index"}, () => 1, description: "If the switch --embed is specified, the index indicates the resource ID to be used for the embedded type library. Must be a number between 1 and 65535. Ignored if --embed not present. (default 1)"),
+            new Option<bool?>(new[] {"--win32", "/win32"}, description: "When compiling on a 64-bit computer, this option specifies that a 32-bit type library is generated."),
+            new Option<bool?>(new[] {"--win64", "/win64"}, description: "When compiling on a 32-bit computer, this option specifies that a 64-bit type library is generated."),
         };
+
+        tlbexportCommand.AddValidator(result =>
+        {
+            if (result.Children.Count(s => s.Symbol.Name is "win32" or "win64") > 1)
+            {
+                result.ErrorMessage = "The options --win32 and --win64 are mutual exclusive.";
+            }
+        });
 
         var tlbdumpCommand = new Command("tlbdump", "Dump a type library")
         {
