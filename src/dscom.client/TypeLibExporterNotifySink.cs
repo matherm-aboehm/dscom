@@ -104,7 +104,12 @@ public class TypeLibExporterNotifySink : ITypeLibExporterNotifySink, ITypeLibExp
         var typeLibConverter = new TypeLibConverter();
         if (!assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Any(z => z.Key.Equals(".NETFrameworkAssembly", StringComparison.Ordinal)))
         {
-            var typeLib = typeLibConverter.ConvertAssemblyToTypeLib(assembly, outputPath, this);
+            var options = new TypeLibConverterSettings
+            {
+                Out = outputPath,
+                Create64BitTlb = Options.Create64BitTlb
+            };
+            var typeLib = typeLibConverter.ConvertAssemblyToTypeLib(assembly, options, this);
             if (typeLib is ICreateTypeLib createTypeLib2)
             {
                 createTypeLib2.SaveAllChanges().ThrowIfFailed($"Failed to save type library {outputPath}.");
