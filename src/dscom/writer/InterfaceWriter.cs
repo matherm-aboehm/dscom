@@ -22,7 +22,7 @@ internal abstract class InterfaceWriter : TypeWriter, WriterFactory.IProvidesFin
 {
     protected InterfaceWriter(Type sourceType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
     {
-        VTableOffsetUserMethodStart = 7 * IntPtr.Size;
+        VTableOffsetUserMethodStart = 7 * PtrSize;
         DispatchIdCreator = new DispatchIdCreator(this);
     }
 
@@ -93,7 +93,7 @@ internal abstract class InterfaceWriter : TypeWriter, WriterFactory.IProvidesFin
             if (methodWriter.IsVisibleMethod)
             {
                 methodWriter.FunctionIndex = functionIndex;
-                methodWriter.VTableOffset = VTableOffsetUserMethodStart + (index * IntPtr.Size);
+                methodWriter.VTableOffset = VTableOffsetUserMethodStart + (index * PtrSize);
                 methodWriter.Create();
                 functionIndex += methodWriter.IsValid ? 1 : 0;
             }
