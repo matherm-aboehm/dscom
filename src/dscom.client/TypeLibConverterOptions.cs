@@ -69,4 +69,14 @@ public class TypeLibConverterOptions : TypeLibConverterSettings
     {
         return Embed is null || !StringComparer.OrdinalIgnoreCase.Equals(Embed, NotSpecifiedViaCommandLineArgumentsDefault);
     }
+
+    /// <summary>
+    /// Gets or sets wether the target platform bitness is 32-bit.
+    /// </summary>
+    public bool? Win32 { get => !Create64BitTlb; set => Create64BitTlb = !value; }
+
+    /// <summary>
+    /// Gets or sets wether the target platform bitness is 64-bit.
+    /// </summary>
+    public bool? Win64 { get => Create64BitTlb; set => Create64BitTlb = value; }
 }
