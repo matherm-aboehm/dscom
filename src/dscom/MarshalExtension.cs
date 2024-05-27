@@ -41,8 +41,12 @@ internal static class MarshalExtension
     private static readonly ConcurrentDictionary<Type, Guid> _cacheTypeGuids = new();
     private static readonly ConcurrentDictionary<Type, Guid> _cacheClassIntfGuids = new();
 
-    internal static Guid GetClassInterfaceGuidForType(Type type, Writer.ClassInterfaceWriter writer)
+    internal static Guid GetClassInterfaceGuidForType(Type type, Writer.ClassInterfaceWriter? writer = null)
     {
+        if (writer is null)
+        {
+            return _cacheClassIntfGuids.TryGetValue(type, out var guidFromCache) ? guidFromCache : Guid.Empty;
+        }
         var guid = _cacheClassIntfGuids.GetOrAdd(type, (t) =>
         {
             var nsGuid = GetGuidNamespaceFromAssembly(t.Assembly);
