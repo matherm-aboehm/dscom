@@ -43,6 +43,7 @@ public static class ConsoleApp
                 new Option<bool?>(new[] {"--createmissingdependenttlbs", "/createmissingdependenttlbs"}, description: "Generate missing type libraries for referenced assemblies. (default true)"),
                 new Option<bool?>(new[] {"--win32", "/win32"}, description: "When compiling on a 64-bit computer, this option specifies that a 32-bit type library is generated."),
                 new Option<bool?>(new[] {"--win64", "/win64"}, description: "When compiling on a 32-bit computer, this option specifies that a 64-bit type library is generated."),
+                new Option<bool>(new[] {"--allowautodual", "/allowautodual"}, description: "Allow generation of class interfaces with AutoDual behavior."),
             };
 
         tlbexportCommand.AddValidator(result =>

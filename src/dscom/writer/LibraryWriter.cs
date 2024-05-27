@@ -181,9 +181,14 @@ internal sealed class LibraryWriter : BaseWriter
                         createClassInterface = true;
                         break;
                     case ClassInterfaceType.AutoDual:
-                        //CA1408: Do not use AutoDual ClassInterfaceType
-                        //https://docs.microsoft.com/en-us/visualstudio/code-quality/ca1408?view=vs-2022
-                        throw new NotSupportedException("Dual class interfaces not supported!");
+                        if (!Context.Options.AllowAutoDual)
+                        {
+                            //CA1408: Do not use AutoDual ClassInterfaceType
+                            //https://docs.microsoft.com/en-us/visualstudio/code-quality/ca1408?view=vs-2022
+                            throw new NotSupportedException("Dual class interfaces not supported!");
+                        }
+                        createClassInterface = true;
+                        break;
                     case ClassInterfaceType.None:
                         createClassInterface = false;
                         break;
