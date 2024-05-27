@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace dSPACE.Runtime.InteropServices.Writer;
@@ -26,10 +27,29 @@ internal sealed class ClassInterfaceWriter : DualInterfaceWriter
             return new ClassInterfaceWriter(ClassInterfaceType, SourceType, ComImportType, LibraryWriter, Context);
         }
     }
+    private static readonly Guid _ireflectGuid = new(Guids.GUID_IReflect);
+    private static readonly Guid _iexpandoGuid = new(Guids.GUID_IExpando);
 
     private ClassInterfaceWriter(ClassInterfaceType classInterfaceType, Type sourceType, Type? comImportType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
     {
         TypeFlags = TYPEFLAGS.TYPEFLAG_FDUAL | TYPEFLAGS.TYPEFLAG_FDISPATCHABLE | TYPEFLAGS.TYPEFLAG_FOLEAUTOMATION | TYPEFLAGS.TYPEFLAG_FHIDDEN;
+        var dispexInterfaces = sourceType.GetInterfaces().Where(
+            static i => i.Equals(typeof(IReflect)) ||
+            (i.FullName == typeof(IReflect).FullName && i.GUID == _ireflectGuid) ||
+            (i.FullName == "System.Runtime.InteropServices.Expando.IExpando" &&
+            i.GUID == _iexpandoGuid)).ToArray();
+        // TODO: if type implements at least IReflect, it will be marshaled as IDispatchEx by runtime
+        // with help of CCW, so do the same here for TLB?
+        if (dispexInterfaces.Length >= 1)
+        {
+        }
+        // if it implements IExpando then it also must implement IReflect, so count would be 2,
+        // if not then it isn't extensible, but mark it only if it is also AutoDual.
+        if (dispexInterfaces.Length != 2 &&
+            classInterfaceType == ClassInterfaceType.AutoDual)
+        {
+            TypeFlags |= TYPEFLAGS.TYPEFLAG_FNONEXTENSIBLE;
+        }
         ClassInterfaceType = classInterfaceType;
         ComDefaultInterface = sourceType.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value;
         ComImportType = comImportType;
@@ -61,6 +81,34 @@ internal sealed class ClassInterfaceWriter : DualInterfaceWriter
     public override void Create()
     {
         Context.LogTypeExported($"Class interface '{Name}' exported.");
+
+        if (ClassInterfaceType != ClassInterfaceType.AutoDual)
+        {
+            // skip method export when it's not AutoDual
+            return;
+        }
+
+        if (IsDisposed)
+        {
+            throw new ObjectDisposedException(nameof(ClassInterfaceWriter));
+        }
+
+        // Create all writer.
+        var index = 0;
+        var functionIndex = 0;
+        foreach (var methodWriter in MethodWriters)
+        {
+            if (methodWriter.IsVisibleMethod)
+            {
+                methodWriter.FunctionIndex = functionIndex;
+                methodWriter.VTableOffset = VTableOffsetUserMethodStart + (index * PtrSize);
+                methodWriter.Create();
+                functionIndex += methodWriter.IsValid ? 1 : 0;
+            }
+            index++;
+        }
+
+        TypeInfo.LayOut().ThrowIfFailed($"Failed to layout type {SourceType}.");
     }
 
     protected override void CreateMethodWriters()
