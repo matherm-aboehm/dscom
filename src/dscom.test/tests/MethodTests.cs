@@ -309,7 +309,7 @@ public class MethodTest : BaseTest
     [InlineData(typeof(bool), true, typeof(bool))]
     [InlineData(typeof(char), '4', typeof(ushort))]
     [InlineData(typeof(object), null, typeof(object))]
-    public void MethodWithParameterWithDefaultValue_HasDefaultValue(Type parameterType, object value, Type acceptedReturnType)
+    public void MethodWithParameterWithDefaultValue_HasDefaultValue(Type parameterType, object? value, Type acceptedReturnType)
     {
         var result = CreateAssembly(CreateAssemblyName(assemblyNameSuffix: $"{parameterType}{value}{acceptedReturnType}"))
                         .WithInterface("TestInterface").WithCustomAttribute<InterfaceTypeAttribute>(ComInterfaceType.InterfaceIsIDispatch)
@@ -1394,7 +1394,7 @@ public class MethodTest : BaseTest
     [InlineData(typeof(string), "Test")]
     [InlineData(typeof(string), null)]
     [InlineData(typeof(bool), true)]
-    public void MethodWithDefaultParameterValueAttribute_DefaultValueIsUsed(Type parameterType, object defaultValue)
+    public void MethodWithDefaultParameterValueAttribute_DefaultValueIsUsed(Type parameterType, object? defaultValue)
     {
         var result = CreateAssembly(new AssemblyName($"Dynamic{parameterType}{defaultValue}"))
                         .WithInterface("TestInterface")

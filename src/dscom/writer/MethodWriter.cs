@@ -39,8 +39,9 @@ internal class MethodWriter : BaseWriter, WriterFactory.IProvidesFinishCreateIns
         MethodName = methodName;
 
         //switch off HResult transformation on method level
-        var preserveSigAttribute = methodInfo.GetCustomAttribute<PreserveSigAttribute>();
-        UseHResultAsReturnValue = preserveSigAttribute == null && interfaceWriter.UseHResultAsReturnValue;
+        PreserveSig = (methodInfo.MethodImplementationFlags & MethodImplAttributes.PreserveSig) != 0
+                    || methodInfo.GetCustomAttribute<PreserveSigAttribute>() != null;
+        UseHResultAsReturnValue = !PreserveSig && interfaceWriter.UseHResultAsReturnValue;
     }
 
 #if NET5_0_OR_GREATER
@@ -64,6 +65,8 @@ internal class MethodWriter : BaseWriter, WriterFactory.IProvidesFinishCreateIns
     {
         FinishCreateInstance();
     }
+
+    public bool PreserveSig { get; }
 
     public bool UseHResultAsReturnValue { get; private set; }
 
@@ -121,7 +124,7 @@ internal class MethodWriter : BaseWriter, WriterFactory.IProvidesFinishCreateIns
 
     public bool HasValidParameters => ParameterWriters.All(z => z.IsValid) && ReturnParamWriter != null && ReturnParamWriter.IsValid;
 
-    public bool IsVisibleMethod => !MethodInfo.IsGenericMethod && IsComVisible;
+    public bool IsVisibleMethod => (MethodInfo != MemberInfo || !MethodInfo.IsGenericMethod) && IsComVisible;
 
     public int FunctionIndex { get; set; } = -1;
 
@@ -130,13 +133,12 @@ internal class MethodWriter : BaseWriter, WriterFactory.IProvidesFinishCreateIns
     public void CreateParameterWriters()
     {
         //check for disabled HRESULT transformation
-        var preserveSigAttribute = MethodInfo.GetCustomAttribute<PreserveSigAttribute>();
-        var useNetMethodSignature = (preserveSigAttribute == null) && !UseHResultAsReturnValue;
+        var useNetMethodSignature = !PreserveSig && !UseHResultAsReturnValue;
         foreach (var paramInfo in MethodInfo.GetParameters())
         {
             ParameterWriters.Add(new ParameterWriter(this, paramInfo, Context, false));
         }
-        if (useNetMethodSignature || preserveSigAttribute != null)
+        if (useNetMethodSignature || PreserveSig)
         {
             ReturnParamWriter = new ParameterWriter(this, MethodInfo.ReturnParameter, Context, false);
         }

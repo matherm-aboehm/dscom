@@ -200,17 +200,18 @@ internal sealed class TypeInfoResolver : ITypeLibCache
                 typeInfo.GetTypeAttr(out ppTypeAttr);
                 var typeAttr = Marshal.PtrToStructure<TYPEATTR>(ppTypeAttr);
 
+                var typeInfo64Bit = (ITypeInfo64Bit)typeInfo;
                 for (var i = 0; i < typeAttr.cImplTypes; i++)
                 {
-                    typeInfo.GetRefTypeOfImplType(i, out var href);
-                    typeInfo.GetRefTypeInfo(href, out var refTypeInfo);
+                    typeInfo64Bit.GetRefTypeOfImplType(i, out var href);
+                    typeInfo64Bit.GetRefTypeInfo(href, out var refTypeInfo);
                     typeInfo.GetImplTypeFlags(i, out var pImplTypeFlags);
 
                     refTypeInfo.GetDocumentation(-1, out var m, out _, out _, out _);
 
                     if (pImplTypeFlags.HasFlag(IMPLTYPEFLAGS.IMPLTYPEFLAG_FDEFAULT))
                     {
-                        return refTypeInfo;
+                        return (ITypeInfo)refTypeInfo;
                     }
                 }
             }
