@@ -12,12 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace dSPACE.Runtime.InteropServices.Writer;
 
 internal abstract class TypeWriter : BaseWriter
 {
+    [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
+    private static readonly Guid GUID_ManagedName = new(Guids.GUID_ManagedName);
+
     private ICreateTypeInfo2? _createTypeInfo2;
 
     private string _name = string.Empty;
@@ -69,7 +73,8 @@ internal abstract class TypeWriter : BaseWriter
     {
         // We need a unique library name. 
         // As soon as an interface appears twice in different namespaces, the namespace should be used as prefix.
-        _name = LibraryWriter.GetUniqueTypeName(SourceType);
+        _name = LibraryWriter.GetUniqueTypeName(SourceType)
+            ?? throw new InvalidOperationException($"Unique name for type {SourceType} was not created.");
 
         var typeLib = Context.TargetTypeLib;
 
@@ -88,7 +93,7 @@ internal abstract class TypeWriter : BaseWriter
             TypeInfo.SetVersion(MajorVersion, MinorVersion)
                 .ThrowIfFailed($"Failed to set version for {Name}.");
 
-            TypeInfo.SetCustData(new Guid(Guids.GUID_ManagedName), SourceType.ToString())
+            TypeInfo.SetCustData(GUID_ManagedName, SourceType.ToString())
                 .ThrowIfFailed($"Failed to set custom data for {Name}.");
 
             var flagsAttrs = SourceType.GetCustomAttributes<Attributes.TypeFlagsAttribute>();

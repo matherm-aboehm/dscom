@@ -47,7 +47,7 @@ internal sealed class DispatchIdCreator
     public void RegisterMember(MethodWriter methodWriter)
     {
         var memberInfo = methodWriter.MemberInfo;
-        var name = methodWriter.MemberInfo.Name;
+        var name = memberInfo.Name;
 
         var dispId = GetNextFreeDispId();
         while (_dispIds.Any(x => x.ExplicitId == dispId || x.Id == dispId))
@@ -62,7 +62,7 @@ internal sealed class DispatchIdCreator
         {
             AddDispatchId(dispId, (uint)dispIdAttribute!.Value, memberInfo);
         }
-        else if (defaultMemberAttribute != null && string.Equals(defaultMemberAttribute.MemberName, methodWriter.MemberInfo.Name, StringComparison.Ordinal))
+        else if (defaultMemberAttribute != null && string.Equals(defaultMemberAttribute.MemberName, name, StringComparison.Ordinal))
         {
             AddDispatchId(dispId, Constants.DISPIP_VALUE, memberInfo);
         }
@@ -99,13 +99,13 @@ internal sealed class DispatchIdCreator
         }
 
         // Remove all duplicate explicit DispIds and send a notification
-        foreach (var kv in _dispIds.Where(i => i.ExplicitId.HasValue))
+        foreach (var elements in _dispIds.Where(i => i.ExplicitId.HasValue)
+                                         .GroupBy(i => i.ExplicitId!.Value))
         {
-            var elements = _dispIds.Where(i => i.ExplicitId == kv.ExplicitId);
             if (elements.Count() > 1)
             {
                 elements.ToList().ForEach(i => i.ExplicitId = null);
-                Context.LogWarning($"Type library exporter warning processing '{kv.MemberInfo.DeclaringType!.Name}'. Warning: The type had one or more duplicate DISPIDs specified. The duplicate DISPIDs were ignored.", HRESULT.TYPE_E_DUPLICATEID);
+                Context.LogWarning($"Type library exporter warning processing '{elements.First().MemberInfo.DeclaringType!.Name}'. Warning: The type had one or more duplicate DISPIDs specified. The duplicate DISPIDs were ignored.", HRESULT.TYPE_E_DUPLICATEID);
             }
         }
 
