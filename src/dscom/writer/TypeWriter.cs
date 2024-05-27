@@ -69,7 +69,8 @@ internal abstract class TypeWriter : BaseWriter
     {
         // We need a unique library name. 
         // As soon as an interface appears twice in different namespaces, the namespace should be used as prefix.
-        _name = LibraryWriter.GetUniqueTypeName(SourceType);
+        _name = LibraryWriter.GetUniqueTypeName(SourceType)
+            ?? throw new InvalidOperationException($"Unique name for type {SourceType} was not created.");
 
         var typeLib = Context.TargetTypeLib;
 

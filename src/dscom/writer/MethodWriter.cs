@@ -121,7 +121,7 @@ internal class MethodWriter : BaseWriter, WriterFactory.IProvidesFinishCreateIns
 
     public bool HasValidParameters => ParameterWriters.All(z => z.IsValid) && ReturnParamWriter != null && ReturnParamWriter.IsValid;
 
-    public bool IsVisibleMethod => !MethodInfo.IsGenericMethod && IsComVisible;
+    public bool IsVisibleMethod => (MethodInfo != MemberInfo || !MethodInfo.IsGenericMethod) && IsComVisible;
 
     public int FunctionIndex { get; set; } = -1;
 

@@ -43,7 +43,7 @@ internal sealed class ClassWriter : TypeWriter
         Context.LogTypeExported($"Class '{Name}' exported.");
     }
 
-    public TypeWriter? ClassInterfaceWriter
+    public ClassInterfaceWriter? ClassInterfaceWriter
     {
         get; set;
     }
@@ -54,13 +54,11 @@ internal sealed class ClassWriter : TypeWriter
 
         var interfaces = SourceType.GetInterfaces().Where(x => x.IsComVisible());
 
-        Type? defaultInterfaceType = null;
+        Type? defaultInterfaceType = ClassInterfaceWriter != null ?
+            ClassInterfaceWriter.ComDefaultInterface :
+            SourceType.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value;
         var useClassInterfaceAsDefault = false;
-        if (SourceType.GetCustomAttribute<ComDefaultInterfaceAttribute>() != null)
-        {
-            defaultInterfaceType = SourceType.GetCustomAttribute<ComDefaultInterfaceAttribute>()!.Value;
-        }
-        else
+        if (defaultInterfaceType == null)
         {
             //no default attribute
             if (ClassInterfaceWriter != null)
@@ -70,8 +68,7 @@ internal sealed class ClassWriter : TypeWriter
             else
             {
                 var result = SourceType.GetComInterfacesRecursive();
-                var orderedInterfaces = new List<Type>();
-                result.ForEach(t => orderedInterfaces.AddRange(t));
+                var orderedInterfaces = result.SelectMany(static t => t);
                 defaultInterfaceType = orderedInterfaces.FirstOrDefault();
             }
         }
