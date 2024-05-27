@@ -39,8 +39,10 @@ internal sealed class EnumWriter : TypeWriter
             var varDesc = new VARDESC();
             var varDescSymbConst = new VARIANT();
 
-            var enumValue = Enum.Parse(SourceType, field.Name.ToString());
-            var enumLongValue = (long)Convert.ChangeType(enumValue, typeof(long), CultureInfo.InvariantCulture);
+            // Enum.Parse is working only with runtime types.
+            //var enumValue = Enum.Parse(SourceType, field.Name.ToString());
+            var enumValue = field.GetRawConstantValue();
+            var enumLongValue = (long)Convert.ChangeType(enumValue!, typeof(long), CultureInfo.InvariantCulture);
             varDescSymbConst.byref = new IntPtr(enumLongValue);
             varDescSymbConst.vt = VarEnum.VT_I4;
 
