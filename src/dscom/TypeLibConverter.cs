@@ -105,7 +105,7 @@ public class TypeLibConverter : ITypeLibConverter
             SYSKIND.SYS_WIN64 : SYSKIND.SYS_WIN32;
 
         OleAut32.CreateTypeLib2(syskind, settings.Out, out var typelib).ThrowIfFailed("Failed to create type library.");
-        using var writer = new LibraryWriter(assembly, new WriterContext(settings, typelib, notifySink));
+        using var writer = new LibraryWriter(assembly, new WriterContext(settings, typelib, notifySink, assembly.GetName()));
         writer.Create();
 
         return typelib;

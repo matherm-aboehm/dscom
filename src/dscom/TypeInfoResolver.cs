@@ -84,8 +84,12 @@ internal sealed class TypeInfoResolver : ITypeLibCache
         var assembly = type.Assembly;
 
         // check if the type library is already present
-        var identifier = GetTypeLibFromIdentifier(assembly.GetLibIdentifier(WriterContext.Options.OverrideTlbId));
-        if (identifier is null)
+        var assemblyName = assembly.GetName();
+        var identifier = assembly.GetLibIdentifier(
+            WriterContext.AssemblyName.FullName == assemblyName.FullName ?
+            WriterContext.Options.OverrideTlbId : Guid.Empty);
+        var typeLib = GetTypeLibFromIdentifier(identifier);
+        if (typeLib is null)
         {
             var name = assembly.GetName().Name ?? string.Empty;
 
@@ -97,20 +101,21 @@ internal sealed class TypeInfoResolver : ITypeLibCache
             // See https://github.com/dspace-group/dscom/issues/310
             foreach (var additionalLib in additionalLibsWithMatchingName)
             {
-                AddTypeLib(additionalLib);
-                typeInfo = ResolveTypeInfo(type.GUID);
-                break;
+                if (AddTypeLib(additionalLib) &&
+                    (typeLib = GetTypeLibFromIdentifier(identifier)) != null)
+                {
+                    break;
+                }
             }
 
             // If no type was found in a type library with matching name we search in the remaining type libraries.
-            if (typeInfo == null)
+            if (typeLib is null)
             {
                 var additionalLibsWithoutMatchingName = _additionalLibs.Except(additionalLibsWithMatchingName);
                 foreach (var additionalLib in additionalLibsWithoutMatchingName)
                 {
-                    AddTypeLib(additionalLib);
-                    typeInfo = ResolveTypeInfo(type.GUID);
-                    if (typeInfo != null)
+                    if (AddTypeLib(additionalLib) &&
+                        (typeLib = GetTypeLibFromIdentifier(identifier)) != null)
                     {
                         break;
                     }
@@ -118,12 +123,23 @@ internal sealed class TypeInfoResolver : ITypeLibCache
             }
 
             var notifySink = WriterContext.NotifySink;
-            if (notifySink != null)
+            if (typeLib is null && notifySink != null)
             {
                 if (notifySink.ResolveRef(assembly) is ITypeLib refTypeLib)
                 {
                     AddTypeLib(refTypeLib);
-                    typeInfo = ResolveTypeInfo(type.GUID);
+                    typeLib = refTypeLib;
+                }
+            }
+
+            if (typeLib != null && type.IsClass)
+            {
+                // try to fetch again from cache after ResolveRef callback has
+                // created new TLB containing this type.
+                var classItfGuid = MarshalExtension.GetClassInterfaceGuidForType(type);
+                if (classItfGuid != Guid.Empty)
+                {
+                    guid = classItfGuid;
                 }
             }
         }
@@ -176,13 +192,18 @@ internal sealed class TypeInfoResolver : ITypeLibCache
         {
             retval = ResolveTypeInfo(new Guid(Guids.IID_IDispatch));
         }
-        else if (type.IsClass)
-        {
-            retval = ResolveTypeInfo(type, MarshalExtension.GenerateGuidForType(type));
-        }
         else
         {
-            retval = ResolveTypeInfo(type, type.GUID);
+            var typeGuid = type.IsClass ? MarshalExtension.GetClassInterfaceGuidForType(type)
+                : MarshalExtension.GenerateGuidForType(type);
+            //HINT: When there was a ClassInterfaceWriter used for the type, the Guid should
+            // be cached in MarshalExtension, if not, then no ClassInterfaceWriter was used
+            // and Guid of the type itself should be used.
+            if (type.IsClass && typeGuid == Guid.Empty)
+            {
+                typeGuid = MarshalExtension.GenerateGuidForType(type);
+            }
+            retval = ResolveTypeInfo(type, typeGuid);
         }
 #pragma warning restore IDE0045 // Convert to conditional expression
 
@@ -228,7 +249,8 @@ internal sealed class TypeInfoResolver : ITypeLibCache
     {
         if (type.IsClass)
         {
-            var typeInfo = ResolveTypeInfo(type.GUID);
+            var typeGuid = MarshalExtension.GenerateGuidForType(type);
+            var typeInfo = ResolveTypeInfo(typeGuid);
             return GetDefaultInterface(typeInfo);
         }
 
