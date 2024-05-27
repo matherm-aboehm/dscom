@@ -47,6 +47,27 @@ internal static class MarshalExtension
         _cacheClassIntfGuids.Clear();
     }
 
+    internal static void AddClassInterfaceTypeToCache(Type classType, Type defItfType)
+    {
+        if (!classType.IsClass)
+        {
+            throw new ArgumentOutOfRangeException(nameof(classType), $"The co-class interface type {defItfType.FullName} can only be used by a class type.");
+        }
+        if (!defItfType.IsInterface || defItfType.GUID == Guid.Empty)
+        {
+            throw new ArgumentOutOfRangeException(nameof(defItfType), $"The co-class interface type {defItfType.FullName} for the co-class {classType.FullName} must be an interface and have a defined GuidAttribute.");
+        }
+        _cacheClassIntfGuids.AddOrUpdate(classType, defItfType.GUID, (t, g) =>
+        {
+            if (g != defItfType.GUID)
+            {
+                throw new InvalidOperationException(
+                    $"A class interface GUID for {t.FullName} was already generated with {g}, but the defined GUID from the type was {defItfType.GUID}.");
+            }
+            return g;
+        });
+    }
+
     internal static Guid GetClassInterfaceGuidForType(Type type, Writer.ClassInterfaceWriter? writer = null)
     {
         if (writer is null)
@@ -199,7 +220,7 @@ internal static class MarshalExtension
         return guid;
     }
 
-    internal static bool IsTypeVisibleFromCom(Type type)
+    internal static bool IsTypeVisibleFromCom(this Type type)
     {
 #if !NETSTANDARD2_0
         if (!type.Assembly.ReflectionOnly)
