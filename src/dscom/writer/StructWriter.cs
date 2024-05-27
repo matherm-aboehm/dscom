@@ -22,12 +22,23 @@ internal sealed class StructWriter : TypeWriter
     public StructWriter(Type sourceType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
     {
         TypeKind = TYPEKIND.TKIND_RECORD;
+        if (sourceType.IsExplicitLayout)
+        {
+            var fieldOffsets = SourceType.GetFields().Select(
+                f => f.GetCustomAttribute<FieldOffsetAttribute>()?.Value ?? -1);
+            if (fieldOffsets.All(o => o == 0))
+            {
+                TypeKind = TYPEKIND.TKIND_UNION;
+            }
+        }
     }
 
     public override void CreateTypeInfo()
     {
         base.CreateTypeInfo();
-        TypeInfo?.SetAlignment(8);
+        var pack = SourceType.StructLayoutAttribute is null or { Pack: default(int) } ? 8
+            : SourceType.StructLayoutAttribute.Pack;
+        TypeInfo?.SetAlignment((ushort)pack);
     }
 
     public override void Create()
@@ -35,6 +46,9 @@ internal sealed class StructWriter : TypeWriter
         Context.LogTypeExported($"Struct '{Name}' exported.");
 
         uint index = 0;
+
+        // TODO: in case of class do recursive iteration through base classes and
+        // define those fields first.
 
         foreach (var item in SourceType.GetFields())
         {
