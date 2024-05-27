@@ -47,6 +47,7 @@ public static class ConsoleApp
             new Option<ushort>("--index", "/index") { DefaultValueFactory = _ => 1, Description = "If the switch --embed is specified, the index indicates the resource ID to be used for the embedded type library. Must be a number between 1 and 65535. Ignored if --embed not present. (default 1)" },
             new Option<bool?>("--win32", "/win32") { Description = "When compiling on a 64-bit computer, this option specifies that a 32-bit type library is generated." },
             new Option<bool?>("--win64", "/win64") { Description = "When compiling on a 32-bit computer, this option specifies that a 64-bit type library is generated." },
+            new Option<bool>("--allowautodual", "/allowautodual") { Description = "Allow generation of class interfaces with AutoDual behavior." },
         };
 
         tlbexportCommand.Validators.Add(result =>
