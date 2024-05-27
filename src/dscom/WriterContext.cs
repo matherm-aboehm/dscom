@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using System.Reflection;
+
 namespace dSPACE.Runtime.InteropServices;
 
 internal sealed class WriterContext
 {
-    public WriterContext(TypeLibConverterSettings options, ICreateTypeLib2 targetTypeLib, ITypeLibExporterNotifySink? notifySink)
+    public WriterContext(TypeLibConverterSettings options, ICreateTypeLib2 targetTypeLib, ITypeLibExporterNotifySink? notifySink, AssemblyName assemblyName)
     {
+        AssemblyName = assemblyName;
         Options = options;
         TargetTypeLib = targetTypeLib;
         NotifySink = notifySink;
@@ -34,6 +37,8 @@ internal sealed class WriterContext
         }
         TypeInfoResolver ??= new TypeInfoResolver(this);
     }
+
+    public AssemblyName AssemblyName { get; }
 
     public ITypeLibExporterNotifySink? NotifySink { get; private set; }
 

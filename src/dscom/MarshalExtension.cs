@@ -47,8 +47,12 @@ internal static class MarshalExtension
         _cacheClassIntfGuids.Clear();
     }
 
-    internal static Guid GetClassInterfaceGuidForType(Type type, Writer.ClassInterfaceWriter writer)
+    internal static Guid GetClassInterfaceGuidForType(Type type, Writer.ClassInterfaceWriter? writer = null)
     {
+        if (writer is null)
+        {
+            return _cacheClassIntfGuids.TryGetValue(type, out var guidFromCache) ? guidFromCache : Guid.Empty;
+        }
         var guid = _cacheClassIntfGuids.GetOrAdd(type, (t) =>
         {
             var nsGuid = GetGuidNamespaceFromAssembly(t.Assembly);
