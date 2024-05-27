@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFrameworks>net8.0;net6.0;net48</TargetFrameworks>
     <PlatformTarget>x64</PlatformTarget>
+    <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <RootNamespace>dSPACE.Runtime.InteropServices.Tests</RootNamespace>
     <ProjectGuid>{5B402A1B-18B1-4D88-804A-BC0E58EF3730}</ProjectGuid>
@@ -18,7 +19,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.0" Condition="'$(TargetFramework)' != 'net6.0'" />
     <PackageReference Include="moq" Version="4.20.72" />
     <PackageReference Include="NETStandard.Library" Version="2.0.3" />
-    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.v3" Version="1.1.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="[3.0.2]" Condition="'$(TargetFramework)' == 'net6.0'" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" Condition="'$(TargetFramework)' != 'net6.0'">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -29,6 +30,7 @@
     <PackageReference Include="Microsoft.Build.Utilities.Core" Version="[17.3.0,17.4.0)" Condition="'$(TargetFramework)' == 'net6.0'" />
     <PackageReference Include="Microsoft.Build.Utilities.Core" Version="17.11.48" Condition="'$(TargetFramework)' == 'net8.0'" />
     <PackageReference Include="Microsoft.Build.Utilities.Core" Version="17.14.28" Condition="'$(TargetFramework)' == 'net48'" />
+    <PackageReference Include="Microsoft.CodeAnalysis.ResxSourceGenerator" Version="5.0.0-1.25277.114" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
@@ -38,6 +40,17 @@
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
     <Compile Remove="tests\CLITest\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="Strings.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <EmitFormatMethods>true</EmitFormatMethods>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>
