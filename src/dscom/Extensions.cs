@@ -272,7 +272,7 @@ internal static class Extensions
     {
         var result = new List<List<Type>>
         {
-            type.GetInterfaces().Where(x => x.IsComVisible()).ToList()
+            type.GetInterfaces().Where(x => x.IsTypeVisibleFromCom()).ToList()
         };
         if (type.BaseType != null)
         {

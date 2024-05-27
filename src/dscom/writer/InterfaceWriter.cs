@@ -130,6 +130,16 @@ internal abstract class InterfaceWriter : TypeWriter, WriterFactory.IProvidesFin
         foreach (var method in methods)
         {
             var methodName = method.Name;
+            if (methodName == ".ctor")
+            {
+                //HINT: Should never reach here, GetMethods() excludes ConstructorInfos,
+                // which is the same the CLR does even for CCWs.
+                // But for the case someone defined an ordinary method with this name,
+                // this conversion is required in order to be compatible with CLR implementation.
+                methodName = "Init"; // COM name for constructor
+            }
+            //HINT: don't replace method.Name with methodName in next code line,
+            // this is intentionally, because first compare is on original name.
             var numIdenticalNames = MethodWriters.Count(z => z.IsVisibleMethod && (z.MemberInfo.Name == method.Name || z.MethodName.StartsWith(methodName + "_", StringComparison.Ordinal)));
 
             numIdenticalNames += _methodNamesOfBaseTypeInfo.Count(z => z == methodName || z.StartsWith(methodName + "_", StringComparison.Ordinal));
@@ -149,6 +159,11 @@ internal abstract class InterfaceWriter : TypeWriter, WriterFactory.IProvidesFin
                     Debug.Assert(methodName.StartsWith("set_", StringComparison.Ordinal));
                     methodWriter = WriterFactory.CreateInstance(new PropertySetMethodWriter.FactoryArgs(this, propertyInfo, method, Context, alternateName));
                 }
+            }
+            else if (methodName == nameof(ToString))
+            {
+                // use same behavior as in .NET Framework, so convert this method to property getter
+                methodWriter = WriterFactory.CreateInstance(new PropertyGetMethodWriter.FactoryArgs(this, null, method, Context, alternateName));
             }
             else
             {

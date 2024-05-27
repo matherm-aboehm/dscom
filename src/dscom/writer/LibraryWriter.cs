@@ -14,6 +14,7 @@
 
 #pragma warning disable 612, 618
 
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -95,35 +96,56 @@ internal sealed class LibraryWriter : BaseWriter
 
         var types = Assembly.GetLoadableTypesAndLog(Context);
 
-        List<TypeWriter> classInterfaceWriters = new();
+        Dictionary<Type, ClassInterfaceWriter> classInterfaceWriters = new();
+        Dictionary<Type, ClassWriter> classWriters = new();
 
         foreach (var type in types)
         {
-            var comVisibleAttribute = type.GetCustomAttribute<ComVisibleAttribute>();
-
-            if (typesAreVisibleForComByDefault && comVisibleAttribute != null && !comVisibleAttribute.Value)
+            // If it is ComImport or WindowsRuntimeImport, skip other checks.
+            if (type.IsImport || type.IsProjectedFromWinRT())
             {
-                continue;
+                if (type.GUID != Guid.Empty)
+                {
+                    //TODO: Implement an IDL Parser and use IDL files from Windows SDK
+                    // to write correct type infos to the TLB
+                    if (Context.TypeInfoResolver.ResolveTypeInfo(type.GUID) is ITypeInfo2 typeInfo)
+                    {
+                        continue;
+                    }
+                }
             }
-
-            if (!typesAreVisibleForComByDefault && (comVisibleAttribute == null || !comVisibleAttribute.Value))
+            else
             {
-                continue;
-            }
+                // Perf: Don't need to check for array in this special case, because
+                // type declarations from an assembly should never be an array,
+                // only referenced types can be array types.
+                /*if (type.IsArray)
+                {
+                    continue;
+                }*/
 
-            if (!type.IsPublic && !type.IsNestedPublicRecursive())
-            {
-                continue;
-            }
+                var comVisibleAttribute = type.GetCustomAttribute<ComVisibleAttribute>();
 
-            if (type.IsGenericType)
-            {
-                continue;
-            }
+                if (typesAreVisibleForComByDefault && comVisibleAttribute != null && !comVisibleAttribute.Value)
+                {
+                    continue;
+                }
 
-            if (type.IsImport)
-            {
-                continue;
+                if (!typesAreVisibleForComByDefault && (comVisibleAttribute == null || !comVisibleAttribute.Value))
+                {
+                    continue;
+                }
+
+                if (!type.IsPublic && !type.IsNestedPublicRecursive())
+                {
+                    continue;
+                }
+
+                if ((type.IsGenericType || type.IsGenericParameter) &&
+                    !type.SupportsGenericInterop(WinRTExtensions.InteropKind.NativeToManaged))
+                {
+                    continue;
+                }
             }
             // Add this type to the unique names collection.
             UpdateUniqueNames(type);
@@ -133,27 +155,78 @@ internal sealed class LibraryWriter : BaseWriter
             {
                 var interfaceTypeAttribute = type.GetCustomAttribute<InterfaceTypeAttribute>();
 
-                typeWriter = interfaceTypeAttribute != null
-                    ? interfaceTypeAttribute.Value switch
+                if (interfaceTypeAttribute == null && type.IsImport && type.IsDefined(typeof(CoClassAttribute)))
+                {
+                    // Type is a dummy interface type for a COM imported co-class.
+                    // It probably isn't the default interface for the class, so find
+                    // that first. Use this type as the class interface exported, if
+                    // the class wants a class interface and the default interface isn't
+                    // found.
+                    var coClass = type.GetCustomAttribute<CoClassAttribute>()!.CoClass;
+                    var classInterfaceType = coClass.GetCustomAttribute<ClassInterfaceAttribute>()?.Value ?? defaultClassInterfaceType;
+                    var defaultInterfaceType = coClass.GetInterfaces().SingleOrDefault(t => !t.Equals(type) && t.GUID == type.GUID);
+                    if (classInterfaceType != ClassInterfaceType.None)
                     {
-                        ComInterfaceType.InterfaceIsDual => WriterFactory.CreateInstance(new DualInterfaceWriter.FactoryArgs(type, this, Context)),
-                        ComInterfaceType.InterfaceIsIDispatch => WriterFactory.CreateInstance(new DispInterfaceWriter.FactoryArgs(type, this, Context)),
-                        ComInterfaceType.InterfaceIsIUnknown => WriterFactory.CreateInstance(new IUnknownInterfaceWriter.FactoryArgs(type, this, Context)),
-                        _ => throw new NotSupportedException($"{interfaceTypeAttribute.Value} not supported"),
+                        if (defaultInterfaceType is not null)
+                        {
+                            throw new InvalidOperationException($"Can't create class interface for co-class {coClass.FullName} with same GUID as the default interface {defaultInterfaceType.FullName}");
+                        }
+                        if (classInterfaceWriters.TryGetValue(coClass, out var classInterfaceWriter))
+                        {
+                            // Class was visited first and class interface writer was already created for it.
+                            // So just inject the type into it.
+                            classInterfaceWriter.ComImportType = type;
+                        }
+                        else
+                        {
+                            classInterfaceWriter = WriterFactory.CreateInstance(new ClassInterfaceWriter.FactoryArgs(classInterfaceType, coClass, type, this, Context));
+                            classInterfaceWriters.Add(coClass, classInterfaceWriter);
+                            if (classWriters.TryGetValue(coClass, out var classWriter))
+                            {
+                                classWriter.ClassInterfaceWriter = classInterfaceWriter;
+                            }
+                        }
                     }
-                    : WriterFactory.CreateInstance(new DualInterfaceWriter.FactoryArgs(type, this, Context));
+                    else if (defaultInterfaceType is not null)
+                    {
+                        // If class interface writer was already created because class
+                        // was visited first and there are other conditions to enable
+                        // the creation than what is checked here, we would need to
+                        // dispose and remove that writer.
+                        // But for now, that the conditions are the same for enablement
+                        // Just skip this type for writer creation.
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("The co-class is missing a default interface.");
+                    }
+                }
+                else
+                {
+                    typeWriter = interfaceTypeAttribute != null
+                        ? interfaceTypeAttribute.Value switch
+                        {
+                            ComInterfaceType.InterfaceIsDual => WriterFactory.CreateInstance(new DualInterfaceWriter.FactoryArgs(type, this, Context)),
+                            ComInterfaceType.InterfaceIsIDispatch => WriterFactory.CreateInstance(new DispInterfaceWriter.FactoryArgs(type, this, Context)),
+                            ComInterfaceType.InterfaceIsIUnknown => WriterFactory.CreateInstance(new IUnknownInterfaceWriter.FactoryArgs(type, this, Context)),
+                            _ => throw new NotSupportedException($"{interfaceTypeAttribute.Value} not supported"),
+                        }
+                        : WriterFactory.CreateInstance(new DualInterfaceWriter.FactoryArgs(type, this, Context));
+                }
             }
             else if (type.IsEnum)
             {
                 typeWriter = new EnumWriter(type, this, Context);
             }
+            else if ((type.IsValueType && !type.IsPrimitive) || type.IsLayoutSequential
+                || type.IsExplicitLayout)
+            {
+                typeWriter = new StructWriter(type, this, Context);
+            }
             else if (type.IsClass)
             {
                 typeWriter = new ClassWriter(type, this, Context);
-            }
-            else if (type.IsValueType && !type.IsPrimitive)
-            {
-                typeWriter = new StructWriter(type, this, Context);
+                classWriters.Add(type, (ClassWriter)typeWriter);
             }
             if (typeWriter != null)
             {
@@ -163,6 +236,17 @@ internal sealed class LibraryWriter : BaseWriter
 
             if (type.IsClass)
             {
+                //check for already created class interface writers
+                if (type.IsImport && classInterfaceWriters.TryGetValue(type, out var classInterfaceWriter))
+                {
+                    if (typeWriter is ClassWriter classWriter)
+                    {
+                        Debug.Assert(classWriter.ClassInterfaceWriter is null);
+                        classWriter.ClassInterfaceWriter = classInterfaceWriter;
+                    }
+                    continue;
+                }
+
                 var createClassInterface = true;
                 //check for class interfaces to generate:
                 var classInterfaceType = type.GetCustomAttribute<ClassInterfaceAttribute>()?.Value ?? defaultClassInterfaceType;
@@ -196,14 +280,14 @@ internal sealed class LibraryWriter : BaseWriter
                 {
                     if (typeWriter is ClassWriter classWriter)
                     {
-                        var classInterfaceWriter = WriterFactory.CreateInstance(new ClassInterfaceWriter.FactoryArgs(classInterfaceType, type, this, Context));
-                        classInterfaceWriters.Add(classInterfaceWriter);
+                        classInterfaceWriter = WriterFactory.CreateInstance(new ClassInterfaceWriter.FactoryArgs(classInterfaceType, type, null, this, Context));
+                        classInterfaceWriters.Add(type, classInterfaceWriter);
                         classWriter.ClassInterfaceWriter = classInterfaceWriter;
                     }
                 }
             }
         }
-        TypeWriters.AddRange(classInterfaceWriters);
+        TypeWriters.AddRange(classInterfaceWriters.Values);
     }
 
     private static string GetFullName(Type type)
