@@ -64,4 +64,9 @@ public class TypeLibConverterSettings
     /// </summary>
     public bool? Create64BitTlb { get; set; }
 
+    /// <summary>
+    /// Get or sets if <see cref="System.Runtime.InteropServices.ClassInterfaceType.AutoDual"/> is allowed or not.
+    /// </summary>
+    public bool AllowAutoDual { get; set; }
+
 }

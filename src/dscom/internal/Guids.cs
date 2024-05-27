@@ -18,6 +18,8 @@ public static class Guids
 
     public const string IID_IDispatch = "00020400-0000-0000-C000-000000000046";
 
+    public const string IID_IDispatchEx = "A6EF9860-C720-11d0-9337-00A0C90DCAA9";
+
     public const string IID_ITypeComp = "00020403-0000-0000-C000-000000000046";
 
     public const string IID_ITypeInfo = "00020401-0000-0000-C000-000000000046";
@@ -49,4 +51,8 @@ public static class Guids
     public const string GUID_PropPutCA = "29533527-3683-4364-ABC0-DB1ADD822FA2";
 
     public const string GUID_Function2Getter = "54FC8F55-38DE-4703-9C4E-250351302B1C";
+
+    public const string GUID_IReflect = "AFBF15E5-C37C-11D2-B88E-00A0C9B471B8";
+
+    public const string GUID_IExpando = "AFBF15E6-C37C-11d2-B88E-00A0C9B471B8";
 }
