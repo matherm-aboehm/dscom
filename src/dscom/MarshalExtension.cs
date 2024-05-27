@@ -248,7 +248,7 @@ internal static class MarshalExtension
                 break;
             case PropertyInfo:
                 Debug.Assert(miAssociate != null);
-                if (!miAssociate!.IsPublic)
+                if (!miAssociate.IsPublic)
                 {
                     return false;
                 }

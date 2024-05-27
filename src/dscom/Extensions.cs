@@ -281,15 +281,8 @@ internal static class Extensions
         }
         if (result.First() != null)
         {
-            var allOtherTypes = new List<Type>();
-            result.Where(z => z != result.First()).ToList().ForEach(y => allOtherTypes.AddRange(y));
-            result.First().ToList().ForEach(y =>
-            {
-                if (allOtherTypes.Contains(y))
-                {
-                    result.First().Remove(y);
-                }
-            });
+            var allOtherTypes = result.Skip(1).SelectMany(static y => y);
+            result[0] = result[0].Except(allOtherTypes).ToList();
         }
         return result;
     }
@@ -306,7 +299,7 @@ internal static class Extensions
                 {
                     parentType = parentType.BaseType;
                     Debug.Assert(parentType != null);
-                } while (parentType!.IsImport);
+                } while (parentType.IsImport);
 
                 // Now we have either System.__ComObject or WindowsRuntime.RuntimeClass
                 if (parentType.FullName != "System.__ComObject")
@@ -320,14 +313,14 @@ internal static class Extensions
                 Debug.Assert(parentType.BaseType != null);
                 parentType = parentType.BaseType;
             }
-            Debug.Assert(!parentType!.IsImport);
+            Debug.Assert(!parentType.IsImport);
 
             // Skip over System.__ComObject, expect System.MarshalByRefObject
             parentType = parentType.BaseType;
             Debug.Assert(parentType != null);
-            Debug.Assert(parentType!.IsMarshalByRef);
+            Debug.Assert(parentType.IsMarshalByRef);
             Debug.Assert(parentType.BaseType != null);
-            Debug.Assert(parentType.BaseType!.Equals(typeof(object)));
+            Debug.Assert(parentType.BaseType.Equals(typeof(object)));
         }
         return parentType;
     }

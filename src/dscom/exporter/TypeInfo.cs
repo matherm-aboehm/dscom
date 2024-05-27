@@ -41,8 +41,9 @@ internal sealed class TypeInfo : BaseInfo
 
         for (var i = 0; i < Attributes.NumberOfImplementedInterfaces; i++)
         {
-            typeInfo.GetRefTypeOfImplType(i, out var href);
-            typeInfo.GetRefTypeInfo(href, out var refTypeInfo);
+            var typeInfo64Bit = (ITypeInfo64Bit)typeInfo;
+            typeInfo64Bit.GetRefTypeOfImplType(i, out var href);
+            typeInfo64Bit.GetRefTypeInfo(href, out var refTypeInfo);
             var refTypeInfo2 = (ITypeInfo2)refTypeInfo;
             ImplementedInterfaces.Add(new ImplementationReferenceTypeInfo(refTypeInfo2, typeInfo, i, this, nameof(ImplementedInterfaces)) { OwningCollection = ImplementedInterfaces });
         }
