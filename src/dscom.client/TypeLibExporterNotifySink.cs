@@ -70,7 +70,7 @@ public class TypeLibExporterNotifySink : ITypeLibExporterNotifySink, ITypeLibExp
     /// <summary>Asks the user to resolve a reference to another assembly.</summary>
     /// <param name="assembly">The assembly to resolve.</param>
     /// <returns>The type library for <paramref name="assembly" />.</returns>
-    public virtual object ResolveRef(Assembly assembly)
+    public virtual object? ResolveRef(Assembly assembly)
     {
         // Try load from cache
         if (TypeLibCache != null)
@@ -102,6 +102,10 @@ public class TypeLibExporterNotifySink : ITypeLibExporterNotifySink, ITypeLibExp
         }
 
         var typeLibConverter = new TypeLibConverter();
+        //HINT: AssemblyMetadataAttribute with ".NETFrameworkAssembly" is removed on .NET Core 8+
+        //see: https://github.com/dotnet/runtime/pull/89490
+        //TODO: So check at least if it is core runtime assembly from AssemblyResolver?
+        // Or ignore it and just let it convert those assemblies too?
         if (!assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Any(z => z.Key.Equals(".NETFrameworkAssembly", StringComparison.Ordinal)))
         {
             var options = new TypeLibConverterSettings
