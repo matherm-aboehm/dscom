@@ -100,16 +100,21 @@ internal sealed class TypeInfoResolver : ITypeLibCache
         {
             retval = ResolveTypeInfo(new Guid(Guids.IID_IDispatch));
         }
-        else if (type.IsClass)
-        {
-            retval = ResolveTypeInfo(MarshalExtension.GenerateGuidForType(type));
-        }
         else
         {
             var assembly = type.Assembly;
             var identifier = assembly.GetLibIdentifier(WriterContext.Options.OverrideTlbId);
 
-            retval = ResolveTypeInfo(type.GUID);
+            var typeGuid = type.IsClass ? MarshalExtension.GetClassInterfaceGuidForType(type)
+                : MarshalExtension.GenerateGuidForType(type);
+            //HINT: When there was a ClassInterfaceWriter used for the type, the Guid should
+            // be cached in MarshalExtension, if not, then no ClassInterfaceWriter was used
+            // and Guid of the type itself should be used.
+            if (type.IsClass && typeGuid == Guid.Empty)
+            {
+                typeGuid = MarshalExtension.GenerateGuidForType(type);
+            }
+            retval = ResolveTypeInfo(typeGuid);
 
             if (retval == null)
             {
@@ -129,7 +134,17 @@ internal sealed class TypeInfoResolver : ITypeLibCache
 
                 if (typeLib != null)
                 {
-                    retval = ResolveTypeInfo(type.GUID);
+                    if (type.IsClass)
+                    {
+                        // try to fetch again from cache after ResolveRef callback has
+                        // created new TLB containing this type.
+                        var classItfGuid = MarshalExtension.GetClassInterfaceGuidForType(type);
+                        if (classItfGuid != Guid.Empty)
+                        {
+                            typeGuid = classItfGuid;
+                        }
+                    }
+                    retval = ResolveTypeInfo(typeGuid);
                 }
             }
         }
@@ -174,7 +189,8 @@ internal sealed class TypeInfoResolver : ITypeLibCache
     {
         if (type.IsClass)
         {
-            var typeInfo = ResolveTypeInfo(type.GUID);
+            var typeGuid = MarshalExtension.GenerateGuidForType(type);
+            var typeInfo = ResolveTypeInfo(typeGuid);
             return GetDefaultInterface(typeInfo);
         }
 
