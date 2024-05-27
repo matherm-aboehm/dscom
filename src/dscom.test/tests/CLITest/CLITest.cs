@@ -24,6 +24,8 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
 
     internal record struct ProcessOutput(string StdOut, string StdErr, int ExitCode);
 
+    internal CompileReleaseFixture CompileFixture { get; }
+
     internal string DSComPath { get; set; } = string.Empty;
 
     internal string DemoProjectAssembly1Path { get; }
@@ -34,21 +36,11 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
 
     public CLITest(CompileReleaseFixture compileFixture)
     {
+        CompileFixture = compileFixture;
         DSComPath = compileFixture.DSComPath;
         DemoProjectAssembly1Path = compileFixture.DemoProjectAssembly1Path;
         DemoProjectAssembly2Path = compileFixture.DemoProjectAssembly2Path;
         DemoProjectAssembly3Path = compileFixture.DemoProjectAssembly3Path;
-
-        foreach (var file in Directory.EnumerateFiles(Environment.CurrentDirectory, "*.tlb"))
-        {
-            File.Delete(file);
-        }
-
-        foreach (var file in Directory.EnumerateFiles(Environment.CurrentDirectory, "*.yaml"))
-        {
-            File.Delete(file);
-        }
-
     }
 
     [Fact]
@@ -158,6 +150,7 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
     [Fact]
     public void TlbExportAndDemoAssemblyAndCallWithTlbDump_ExitCodeIs0AndTlbIsAvailableAndValid()
     {
+        using var context = CompileFixture.GetPreparedTestDirectoryContext();
         var tlbFileName = $"{Path.GetFileNameWithoutExtension(DemoProjectAssembly1Path)}.tlb";
         var yamlFileName = $"{Path.GetFileNameWithoutExtension(DemoProjectAssembly1Path)}.yaml";
 
@@ -180,6 +173,7 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
     [Fact]
     public void TlbExportCreateMissingDependentTLBsFalseAndOverrideTlbId_ExitCodeIs0AndTlbIsAvailableAndDependentTlbIsNot()
     {
+        using var context = CompileFixture.GetPreparedTestDirectoryContext();
         var tlbFileName = $"{Path.GetFileNameWithoutExtension(DemoProjectAssembly3Path)}.tlb";
         var tlbFilePath = Path.Combine(Environment.CurrentDirectory, tlbFileName);
 
@@ -198,6 +192,7 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
     [Fact]
     public void TlbExportCreateMissingDependentTLBsFalse_ExitCodeIs0AndTlbIsAvailableAndDependentTlbIsNot()
     {
+        using var context = CompileFixture.GetPreparedTestDirectoryContext();
         var tlbFileName = $"{Path.GetFileNameWithoutExtension(DemoProjectAssembly1Path)}.tlb";
         var dependentFileName = $"{Path.GetFileNameWithoutExtension(DemoProjectAssembly2Path)}.tlb";
         var tlbFilePath = Path.Combine(Environment.CurrentDirectory, tlbFileName);
@@ -216,6 +211,7 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
     [Fact]
     public void TlbExportCreateMissingDependentTLBsTrue_ExitCodeIs0AndTlbIsAvailableAndDependentTlbIsNot()
     {
+        using var context = CompileFixture.GetPreparedTestDirectoryContext();
         var tlbFileName = $"{Path.GetFileNameWithoutExtension(DemoProjectAssembly1Path)}.tlb";
         var dependentFileName = $"{Path.GetFileNameWithoutExtension(DemoProjectAssembly2Path)}.tlb";
         var tlbFilePath = Path.Combine(Environment.CurrentDirectory, tlbFileName);
@@ -231,6 +227,7 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
     [Fact]
     public void TlbExportCreateMissingDependentTLBsNoValue_ExitCodeIs0()
     {
+        using var context = CompileFixture.GetPreparedTestDirectoryContext();
         var tlbFileName = $"{Path.GetFileNameWithoutExtension(DemoProjectAssembly1Path)}.tlb";
         var dependentFileName = $"{Path.GetFileNameWithoutExtension(DemoProjectAssembly2Path)}.tlb";
         var tlbFilePath = Path.Combine(Environment.CurrentDirectory, tlbFileName);
@@ -246,6 +243,7 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
     [Fact]
     public void TlbExportAndOptionSilent_StdOutAndStdErrIsEmpty()
     {
+        using var context = CompileFixture.GetPreparedTestDirectoryContext();
         var tlbFileName = $"{Guid.NewGuid()}.tlb";
         var tlbFilePath = Path.Combine(Environment.CurrentDirectory, tlbFileName);
 
@@ -261,6 +259,7 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
     [Fact]
     public void TlbExportAndOptionSilenceTX801311A6_StdOutAndStdErrIsEmpty()
     {
+        using var context = CompileFixture.GetPreparedTestDirectoryContext();
         var tlbFileName = $"{Guid.NewGuid()}.tlb";
         var tlbFilePath = Path.Combine(Environment.CurrentDirectory, tlbFileName);
 
@@ -276,6 +275,7 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
     [Fact]
     public void TlbExportAndOptionOverrideTLBId_TLBIdIsCorrect()
     {
+        using var context = CompileFixture.GetPreparedTestDirectoryContext();
         var guid = Guid.NewGuid().ToString();
 
         var tlbFileName = $"{guid}.tlb";
