@@ -186,7 +186,7 @@ internal sealed class LibraryWriter : BaseWriter
                 }
 
                 //check for generic base types
-                var baseType = type!.BaseType;
+                var baseType = type.BaseType;
                 while (baseType != null)
                 {
                     if (baseType.IsGenericType)
@@ -201,7 +201,7 @@ internal sealed class LibraryWriter : BaseWriter
                 {
                     if (typeWriter is ClassWriter classWriter)
                     {
-                        var classInterfaceWriter = WriterFactory.CreateInstance(new ClassInterfaceWriter.FactoryArgs(classInterfaceType, type!, this, Context));
+                        var classInterfaceWriter = WriterFactory.CreateInstance(new ClassInterfaceWriter.FactoryArgs(classInterfaceType, type, this, Context));
                         classInterfaceWriters.Add(classInterfaceWriter);
                         classWriter.ClassInterfaceWriter = classInterfaceWriter;
                     }

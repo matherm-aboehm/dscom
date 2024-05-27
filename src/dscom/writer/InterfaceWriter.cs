@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#if NET5_0_OR_GREATER
+using System.Diagnostics.CodeAnalysis;
+#endif
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
@@ -20,12 +23,24 @@ namespace dSPACE.Runtime.InteropServices.Writer;
 
 internal abstract class InterfaceWriter : TypeWriter, WriterFactory.IProvidesFinishCreateInstance
 {
+    //HINT: Cannot use NotNullAttribute in combination with nullable-ref type here,
+    // because older analyzers ignore it and still show warnings for null references.
+    // So make it non-null and initialize it to null with null! to remove the warning for
+    // constructors.
+    // Make sure to always call FinishCreateInstance after construction, so that it
+    // actually has a value after that and not just trick the analyzer.
+    //[NotNull]
+    private IEnumerable<string> _methodNamesOfBaseTypeInfo = null!;
+
     protected InterfaceWriter(Type sourceType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
     {
         VTableOffsetUserMethodStart = 7 * PtrSize;
         DispatchIdCreator = new DispatchIdCreator(this);
     }
 
+#if NET5_0_OR_GREATER
+    [MemberNotNull(nameof(_methodNamesOfBaseTypeInfo))]
+#endif
     protected virtual void FinishCreateInstance()
     {
         // Base types from interfaces should be pre-defined in stdole2 and not custom types.
@@ -33,6 +48,8 @@ internal abstract class InterfaceWriter : TypeWriter, WriterFactory.IProvidesFin
         // but CreateMethodWriters() needs type info here for duplicate name checking.
         BaseTypeInfo = Context.TypeInfoResolver.ResolveTypeInfo(BaseInterfaceGuid);
         Debug.Assert(BaseTypeInfo is not null);
+
+        _methodNamesOfBaseTypeInfo = GetMethodNamesOfBaseTypeInfo((ITypeInfo64Bit?)BaseTypeInfo);
 
         CreateMethodWriters();
 
@@ -115,7 +132,7 @@ internal abstract class InterfaceWriter : TypeWriter, WriterFactory.IProvidesFin
             var methodName = method.Name;
             var numIdenticalNames = MethodWriters.Count(z => z.IsVisibleMethod && (z.MemberInfo.Name == method.Name || z.MethodName.StartsWith(methodName + "_", StringComparison.Ordinal)));
 
-            numIdenticalNames += GetMethodNamesOfBaseTypeInfo(BaseTypeInfo).Count(z => z == methodName || z.StartsWith(methodName + "_", StringComparison.Ordinal));
+            numIdenticalNames += _methodNamesOfBaseTypeInfo.Count(z => z == methodName || z.StartsWith(methodName + "_", StringComparison.Ordinal));
 
             var alternateName = numIdenticalNames == 0 ? methodName : methodName + "_" + (numIdenticalNames + 1).ToString(CultureInfo.InvariantCulture);
             MethodWriter methodWriter;
@@ -141,18 +158,18 @@ internal abstract class InterfaceWriter : TypeWriter, WriterFactory.IProvidesFin
             MethodWriters.Add(methodWriter);
             if (methodWriter.IsVisibleMethod)
             {
-                DispatchIdCreator!.RegisterMember(methodWriter);
+                DispatchIdCreator.RegisterMember(methodWriter);
             }
             else
             {
                 // In case of ComVisible false, we need to increment the the next free DispId
                 // This offset is needed to keep the DispId in sync with the VTable and the behavior of tlbexp.
-                DispatchIdCreator!.GetNextFreeDispId();
+                DispatchIdCreator.GetNextFreeDispId();
             }
         }
     }
 
-    private static IEnumerable<string> GetMethodNamesOfBaseTypeInfo(ITypeInfo? typeInfo)
+    private static IEnumerable<string> GetMethodNamesOfBaseTypeInfo(ITypeInfo64Bit? typeInfo)
     {
         var names = new List<string>();
         if (typeInfo != null)

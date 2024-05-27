@@ -135,10 +135,12 @@ internal sealed class ParameterWriter : ElemDescBasedWriter
     {
         CalculateFlags();
 
-        if (IsValid)
+        if (!IsValid)
         {
-            base.Create();
+            return;
         }
+
+        base.Create();
 
         if (_isTransformedOutParameter || Type.IsByRef)
         {
