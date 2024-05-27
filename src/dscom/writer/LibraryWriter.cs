@@ -100,6 +100,12 @@ internal sealed class LibraryWriter : BaseWriter
 
         foreach (var type in types)
         {
+            // If it is ComImport or WindowsRuntimeImport, skip it.
+            if (type.IsImport || type.IsProjectedFromWinRT())
+            {
+                continue;
+            }
+
             var comVisibleAttribute = type.GetCustomAttribute<ComVisibleAttribute>();
 
             if (typesAreVisibleForComByDefault && comVisibleAttribute != null && !comVisibleAttribute.Value)
@@ -122,7 +128,8 @@ internal sealed class LibraryWriter : BaseWriter
                 continue;
             }
 
-            if (type.IsGenericType)
+            if ((type.IsGenericType || type.IsGenericParameter) &&
+                !type.SupportsGenericInterop(WinRTExtensions.InteropKind.NativeToManaged))
             {
                 continue;
             }
@@ -148,13 +155,14 @@ internal sealed class LibraryWriter : BaseWriter
             {
                 typeWriter = new EnumWriter(type, this, Context);
             }
+            else if ((type.IsValueType && !type.IsPrimitive) || type.IsLayoutSequential
+                || type.IsExplicitLayout)
+            {
+                typeWriter = new StructWriter(type, this, Context);
+            }
             else if (type.IsClass)
             {
                 typeWriter = new ClassWriter(type, this, Context);
-            }
-            else if (type.IsValueType && !type.IsPrimitive)
-            {
-                typeWriter = new StructWriter(type, this, Context);
             }
             if (typeWriter != null)
             {
