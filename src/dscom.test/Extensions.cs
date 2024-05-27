@@ -18,6 +18,12 @@ namespace dSPACE.Runtime.InteropServices.Tests;
 
 public static class Extensions
 {
+    public static DisposableComObject<T> AsDisposableComObject<T>(this T? obj)
+        where T : class
+    {
+        return new DisposableComObject<T>(obj);
+    }
+
     public static DisposableStruct<TYPELIBATTR>? GetTypeLibAttributes(this ITypeLib2 typelib)
     {
         typelib.GetLibAttr(out var ppTLIBAttr);

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Xunit;
 
@@ -24,54 +25,50 @@ namespace dSPACE.Runtime.InteropServices.Tests;
 /// <remarks>The CLI tests are not available for .NET Framework</remarks>
 public abstract class CLITestBase : IClassFixture<CompileReleaseFixture>, IDisposable
 {
-    protected const string ErrorNoCommandOrOptions = "Required command was not provided.";
-
     internal record struct ProcessOutput(string StdOut, string StdErr, int ExitCode);
+
+    internal CompileReleaseFixture CompileFixture { get; }
 
     internal string DSComPath { get; set; } = string.Empty;
 
-    internal string TestAssemblyTemporyTlbFilePath { get; }
+    internal string? TestAssemblyTemporyTlbFilePath { get; private set; }
 
-    internal string TestAssemblyTemporyYamlFilePath { get; }
+    internal string? TestAssemblyTemporyYamlFilePath { get; private set; }
 
     internal string TestAssemblyPath { get; }
 
     internal string TestAssemblyDependencyPath { get; }
 
-    internal string TestAssemblyDependencyTemporyTlbFilePath { get; }
+    internal string? TestAssemblyDependencyTemporyTlbFilePath { get; private set; }
 
-    internal string TestAssemblTestDirectoryPath { get; }
-
-    internal string TestAssemblyDependencyTestDirectoryPath { get; }
+    internal string? TemporaryTestDirectoryPath { get; private set; }
 
     public CLITestBase(CompileReleaseFixture compileFixture)
     {
+        CompileFixture = compileFixture;
         DSComPath = compileFixture.DSComPath;
         TestAssemblyPath = compileFixture.TestAssemblyPath;
         TestAssemblyDependencyPath = compileFixture.TestAssemblyDependencyPath;
+    }
 
-        var testAssemblyDirectoryPath = Path.GetDirectoryName(TestAssemblyPath);
-        var testAssemblyDependencyDirectoryPath = Path.GetDirectoryName(TestAssemblyDependencyPath);
+    [MemberNotNull(nameof(TemporaryTestDirectoryPath))]
+    [MemberNotNull(nameof(TestAssemblyTemporyTlbFilePath))]
+    [MemberNotNull(nameof(TestAssemblyTemporyYamlFilePath))]
+    [MemberNotNull(nameof(TestAssemblyDependencyTemporyTlbFilePath))]
+    internal void PrepareTemporaryTestDirectory()
+    {
+        TemporaryTestDirectoryPath = Path.Combine(CompileFixture.CurrentDir, Guid.NewGuid().ToString());
 
-        if (testAssemblyDirectoryPath == null)
-        {
-            throw new DirectoryNotFoundException("Output directory not found.");
-        }
+        Directory.CreateDirectory(TemporaryTestDirectoryPath);
 
-        if (testAssemblyDependencyDirectoryPath == null)
-        {
-            throw new DirectoryNotFoundException("Output directory not found.");
-        }
-
-        TestAssemblTestDirectoryPath = Path.Combine(testAssemblyDirectoryPath, Guid.NewGuid().ToString());
-        TestAssemblyDependencyTestDirectoryPath = Path.Combine(testAssemblyDependencyDirectoryPath, Guid.NewGuid().ToString());
-
-        Directory.CreateDirectory(TestAssemblTestDirectoryPath);
-        Directory.CreateDirectory(TestAssemblyDependencyTestDirectoryPath);
-
-        TestAssemblyTemporyTlbFilePath = Path.Combine(TestAssemblTestDirectoryPath, Path.GetFileNameWithoutExtension(TestAssemblyPath) + ".tlb");
+        TestAssemblyTemporyTlbFilePath = Path.Combine(TemporaryTestDirectoryPath, Path.GetFileNameWithoutExtension(TestAssemblyPath) + ".tlb");
         TestAssemblyTemporyYamlFilePath = TestAssemblyTemporyTlbFilePath.Replace(".tlb", ".yaml");
-        TestAssemblyDependencyTemporyTlbFilePath = Path.Combine(TestAssemblyDependencyTestDirectoryPath, Path.GetFileNameWithoutExtension(TestAssemblyDependencyPath) + ".tlb");
+        TestAssemblyDependencyTemporyTlbFilePath = Path.Combine(TemporaryTestDirectoryPath, Path.GetFileNameWithoutExtension(TestAssemblyDependencyPath) + ".tlb");
+    }
+
+    internal void KeepTemporaryTestDirectory()
+    {
+        TemporaryTestDirectoryPath = null;
     }
 
     internal static ProcessOutput Execute(string filename, params string[] args)
@@ -121,14 +118,13 @@ public abstract class CLITestBase : IClassFixture<CompileReleaseFixture>, IDispo
     {
         if (disposing)
         {
-            if (Directory.Exists(TestAssemblTestDirectoryPath))
+            if (!string.IsNullOrEmpty(TemporaryTestDirectoryPath) &&
+                Directory.Exists(TemporaryTestDirectoryPath))
             {
-                Directory.Delete(TestAssemblTestDirectoryPath, true);
-            }
-
-            if (Directory.Exists(TestAssemblyDependencyTestDirectoryPath))
-            {
-                Directory.Delete(TestAssemblyDependencyTestDirectoryPath, true);
+                RetryHandler.Retry(() =>
+                {
+                    Directory.Delete(TemporaryTestDirectoryPath, true);
+                }, new[] { typeof(UnauthorizedAccessException) });
             }
         }
     }
