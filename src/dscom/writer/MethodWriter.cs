@@ -140,11 +140,24 @@ internal class MethodWriter : BaseWriter, WriterFactory.IProvidesFinishCreateIns
         }
         if (useNetMethodSignature || PreserveSig)
         {
-            ReturnParamWriter = new ParameterWriter(this, MethodInfo.ReturnParameter, Context, false);
+            var returnType = MethodInfo.ReturnType;
+            var returnParam = MethodInfo.ReturnParameter;
+            // if it is a custom value type that is namend HRESULT then
+            // don't use that for the ReturnParamWriter, instead enable
+            // the HRESULT transformation
+            if (returnType.IsValueType && returnType.Name == "HRESULT")
+            {
+                returnParam = new HResultParamInfo();
+            }
+            ReturnParamWriter = new ParameterWriter(this, returnParam, Context, false);
         }
         else
         {
-            ParameterWriters.Add(new ParameterWriter(this, MethodInfo.ReturnParameter, Context, true));
+            // do not create retval parameter for void return
+            if (!MethodInfo.ReturnType.Equals(typeof(void)))
+            {
+                ParameterWriters.Add(new ParameterWriter(this, MethodInfo.ReturnParameter, Context, true));
+            }
             ReturnParamWriter = new ParameterWriter(this, new HResultParamInfo(), Context, false);
         }
     }
