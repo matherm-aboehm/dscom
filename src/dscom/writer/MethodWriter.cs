@@ -142,7 +142,11 @@ internal class MethodWriter : BaseWriter, WriterFactory.IProvidesFinishCreateIns
         }
         else
         {
-            ParameterWriters.Add(new ParameterWriter(this, MethodInfo.ReturnParameter, Context, true));
+            // do not create retval parameter for void return
+            if (!MethodInfo.ReturnType.Equals(typeof(void)))
+            {
+                ParameterWriters.Add(new ParameterWriter(this, MethodInfo.ReturnParameter, Context, true));
+            }
             ReturnParamWriter = new ParameterWriter(this, new HResultParamInfo(), Context, false);
         }
     }
