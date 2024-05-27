@@ -78,7 +78,7 @@ public class RegistrationServicesTest : BaseTest
                 _guidOfiClassFactory);
         });
 
-        exception.Message.Should().StartWith("Class not registered");
+        exception.HResult.Should().Be(unchecked((int)0x80040154));  //HRESULT 0x80040154 = "Class not registered"
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public class RegistrationServicesTest : BaseTest
                 _guidOfiClassFactory);
         });
 
-        exception.Message.Should().StartWith("Class not registered");
+        exception.HResult.Should().Be(unchecked((int)0x80040154));  //HRESULT 0x80040154 = "Class not registered"
 
         registrationServices.UnregisterTypeForComClients(cookie);
     }
