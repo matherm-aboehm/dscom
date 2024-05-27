@@ -18,27 +18,45 @@ namespace dSPACE.Runtime.InteropServices.Writer;
 
 internal sealed class ClassInterfaceWriter : DualInterfaceWriter
 {
-    internal new readonly record struct FactoryArgs(ClassInterfaceType ClassInterfaceType, Type SourceType, LibraryWriter LibraryWriter, WriterContext Context)
+    internal new readonly record struct FactoryArgs(ClassInterfaceType ClassInterfaceType, Type SourceType, Type? ComImportType, LibraryWriter LibraryWriter, WriterContext Context)
         : WriterFactory.IWriterArgsFor<ClassInterfaceWriter>
     {
         ClassInterfaceWriter WriterFactory.IWriterArgsFor<ClassInterfaceWriter>.CreateInstance()
         {
-            return new ClassInterfaceWriter(ClassInterfaceType, SourceType, LibraryWriter, Context);
+            return new ClassInterfaceWriter(ClassInterfaceType, SourceType, ComImportType, LibraryWriter, Context);
         }
     }
 
-    private ClassInterfaceWriter(ClassInterfaceType classInterfaceType, Type sourceType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
+    private ClassInterfaceWriter(ClassInterfaceType classInterfaceType, Type sourceType, Type? comImportType, LibraryWriter libraryWriter, WriterContext context) : base(sourceType, libraryWriter, context)
     {
         TypeFlags = TYPEFLAGS.TYPEFLAG_FDUAL | TYPEFLAGS.TYPEFLAG_FDISPATCHABLE | TYPEFLAGS.TYPEFLAG_FOLEAUTOMATION | TYPEFLAGS.TYPEFLAG_FHIDDEN;
         ClassInterfaceType = classInterfaceType;
         ComDefaultInterface = sourceType.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value;
+        ComImportType = comImportType;
     }
 
-    protected override string Name => $"_{base.Name!}";
+    private Type? _comImportType;
+
+    protected override string Name => ComImportType?.Name ?? $"_{base.Name!}";
 
     public ClassInterfaceType ClassInterfaceType { get; }
 
     public Type? ComDefaultInterface { get; }
+
+    public Type? ComImportType
+    {
+        get => _comImportType;
+        internal set
+        {
+            if (_comImportType is null && value is not null
+                && value.GUID != Guid.Empty)
+            {
+                MarshalExtension.AddClassInterfaceTypeToCache(SourceType, value);
+            }
+
+            _comImportType = value;
+        }
+    }
 
     public override void Create()
     {
