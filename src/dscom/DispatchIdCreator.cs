@@ -47,7 +47,7 @@ internal sealed class DispatchIdCreator
     public void RegisterMember(MethodWriter methodWriter)
     {
         var memberInfo = methodWriter.MemberInfo;
-        var name = methodWriter.MemberInfo.Name;
+        var name = memberInfo.Name;
 
         var dispId = GetNextFreeDispId();
         while (_dispIds.Any(x => x.ExplicitId == dispId || x.Id == dispId))
@@ -62,7 +62,7 @@ internal sealed class DispatchIdCreator
         {
             AddDispatchId(dispId, (uint)dispIdAttribute!.Value, memberInfo);
         }
-        else if (defaultMemberAttribute != null && string.Equals(defaultMemberAttribute.MemberName, methodWriter.MemberInfo.Name, StringComparison.Ordinal))
+        else if (defaultMemberAttribute != null && string.Equals(defaultMemberAttribute.MemberName, name, StringComparison.Ordinal))
         {
             AddDispatchId(dispId, Constants.DISPIP_VALUE, memberInfo);
         }

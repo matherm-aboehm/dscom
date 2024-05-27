@@ -38,11 +38,7 @@ internal sealed class StructWriter : TypeWriter
 
         foreach (var item in SourceType.GetFields())
         {
-            var comVisible = true;
-            if (item.GetCustomAttribute<ComVisibleAttribute>() != null)
-            {
-                comVisible = item.GetCustomAttribute<ComVisibleAttribute>()!.Value;
-            }
+            var comVisible = item.GetCustomAttribute<ComVisibleAttribute>()?.Value ?? true;
 
             // Create members only if the struct is visible to COM and the field public and not static.
             if (comVisible && item.IsPublic && !item.IsStatic)

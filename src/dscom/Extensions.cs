@@ -281,15 +281,8 @@ internal static class Extensions
         }
         if (result.First() != null)
         {
-            var allOtherTypes = new List<Type>();
-            result.Where(z => z != result.First()).ToList().ForEach(y => allOtherTypes.AddRange(y));
-            result.First().ToList().ForEach(y =>
-            {
-                if (allOtherTypes.Contains(y))
-                {
-                    result.First().Remove(y);
-                }
-            });
+            var allOtherTypes = result.Skip(1).SelectMany(static y => y);
+            result[0] = result[0].Except(allOtherTypes).ToList();
         }
         return result;
     }
