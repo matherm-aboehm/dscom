@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 extern alias dscom;
-using dscom::dSPACE.Runtime.InteropServices;
 
 using System.CommandLine;
 using System.CommandLine.NamingConventionBinder;
 using System.CommandLine.Parsing;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using dscom::dSPACE.Runtime.InteropServices;
 
 #pragma warning disable CA1861 
 
