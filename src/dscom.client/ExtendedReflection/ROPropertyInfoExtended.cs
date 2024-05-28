@@ -43,7 +43,7 @@ internal sealed class ROPropertyInfoExtended : PropertyInfo
         if (inherit)
         {
             List<Attribute> resultList = new((Attribute[])result);
-            Type[] indexParamTypes = _roPropertyInfo.GetIndexParameters().Select(pi => pi.ParameterType).ToArray();
+            var indexParamTypes = _roPropertyInfo.GetIndexParameters().Select(pi => pi.ParameterType).ToArray();
             var attrTypes = Extensions.GetAttributeTypes(resultList);
             for (var baseProp = _roPropertyInfo.GetParentDefinition(indexParamTypes);
                 baseProp != null; baseProp = baseProp.GetParentDefinition(indexParamTypes))
@@ -68,7 +68,7 @@ internal sealed class ROPropertyInfoExtended : PropertyInfo
         }
 
         List<Attribute> resultList = new((Attribute[])result);
-        Type[] indexParamTypes = _roPropertyInfo.GetIndexParameters().Select(pi => pi.ParameterType).ToArray();
+        var indexParamTypes = _roPropertyInfo.GetIndexParameters().Select(pi => pi.ParameterType).ToArray();
         for (var baseProp = _roPropertyInfo.GetParentDefinition(indexParamTypes);
             baseProp != null; baseProp = baseProp.GetParentDefinition(indexParamTypes))
         {
@@ -92,7 +92,7 @@ internal sealed class ROPropertyInfoExtended : PropertyInfo
         {
             return result;
         }
-        Type[] indexParamTypes = _roPropertyInfo.GetIndexParameters().Select(pi => pi.ParameterType).ToArray();
+        var indexParamTypes = _roPropertyInfo.GetIndexParameters().Select(pi => pi.ParameterType).ToArray();
         for (var baseProp = _roPropertyInfo.GetParentDefinition(indexParamTypes);
             baseProp != null; baseProp = baseProp.GetParentDefinition(indexParamTypes))
         {
