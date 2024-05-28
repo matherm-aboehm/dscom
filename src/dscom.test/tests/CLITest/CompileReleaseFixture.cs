@@ -18,8 +18,8 @@ public class CompileReleaseFixture : IDisposable
 {
     private sealed class TestContext : IDisposable
     {
-        readonly CompileReleaseFixture _owner;
-        int _lockTaken;
+        private readonly CompileReleaseFixture _owner;
+        private int _lockTaken;
         public TestContext(CompileReleaseFixture owner)
         {
             _owner = owner;
@@ -43,7 +43,7 @@ public class CompileReleaseFixture : IDisposable
         }
     }
 
-    private TestContext _testContext;
+    private readonly TestContext _testContext;
 
     public string Workdir { get; private set; } = string.Empty;
 

@@ -274,13 +274,13 @@ internal static class MarshalExtension
         {
             throw new ArgumentException("The type must be com creatable.", nameof(type));
         }
-        IList<CustomAttributeData> customAttributes = CustomAttributeData.GetCustomAttributes(type);
-        for (int i = 0; i < customAttributes.Count; i++)
+        var customAttributes = CustomAttributeData.GetCustomAttributes(type);
+        for (var i = 0; i < customAttributes.Count; i++)
         {
-            if (customAttributes[i].Constructor.DeclaringType == typeof(ProgIdAttribute))
+            if (customAttributes[i].Constructor.DeclaringType!.Equals(typeof(ProgIdAttribute)))
             {
-                IList<CustomAttributeTypedArgument> constructorArguments = customAttributes[i].ConstructorArguments;
-                string progId = (string?)constructorArguments[0].Value ?? string.Empty;
+                var constructorArguments = customAttributes[i].ConstructorArguments;
+                var progId = (string?)constructorArguments[0].Value ?? string.Empty;
                 return progId;
             }
         }
@@ -408,7 +408,7 @@ internal static class MarshalExtension
         return rv;
     }
 
-    enum DefaultInterfaceType
+    private enum DefaultInterfaceType
     {
         Explicit = 0,
         IUnknown = 1,
@@ -481,7 +481,7 @@ internal static class MarshalExtension
             return DefaultInterfaceType.IUnknown;
         }
 
-        Type? defaultInterfaceType = writer != null ?
+        var defaultInterfaceType = writer != null ?
             writer.ComDefaultInterface :
             classType.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value;
         if (defaultInterfaceType != null)
@@ -615,7 +615,7 @@ internal static class MarshalExtension
                 result.Append('[');
                 Debug.Assert(shape.Sizes.Length == shape.Rank &&
                     shape.LowerBounds.Length == shape.Rank);
-                for (int i = 0; i < shape.Rank; i++)
+                for (var i = 0; i < shape.Rank; i++)
                 {
                     //maybe should use "||" not "&&", but original PrettyPrintTypeA
                     //has this bug, so do the same here
@@ -826,8 +826,8 @@ internal static class MarshalExtension
         }
     }
 
-    const byte IMAGE_CEE_CS_CALLCONV_MAX = 12;
-    static readonly string[] _callConvNames =
+    private const byte IMAGE_CEE_CS_CALLCONV_MAX = 12;
+    private static readonly string[] _callConvNames =
             new string[IMAGE_CEE_CS_CALLCONV_MAX]
             {
             "",

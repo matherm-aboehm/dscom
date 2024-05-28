@@ -8,7 +8,7 @@ namespace dSPACE.Runtime.InteropServices;
 [ExcludeFromCodeCoverage]
 internal static class WinRTExtensions
 {
-    enum WinMDTypeKind
+    private enum WinMDTypeKind
     {
         Attribute,
         Enum,
