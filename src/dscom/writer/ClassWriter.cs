@@ -54,7 +54,7 @@ internal sealed class ClassWriter : TypeWriter
 
         var interfaces = SourceType.GetInterfaces().Where(x => x.IsComVisible());
 
-        Type? defaultInterfaceType = ClassInterfaceWriter != null ?
+        var defaultInterfaceType = ClassInterfaceWriter != null ?
             ClassInterfaceWriter.ComDefaultInterface :
             SourceType.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value;
         var useClassInterfaceAsDefault = false;

@@ -5,8 +5,8 @@ namespace dSPACE.Runtime.InteropServices;
 
 internal static class Extensions
 {
-    static readonly ILookup<string, Assembly> _mappingForwardedTypesFrom;
-    static readonly AttributeUsageAttribute _defaultAttrUsage = new(AttributeTargets.All);
+    private static readonly ILookup<string, Assembly> _mappingForwardedTypesFrom;
+    private static readonly AttributeUsageAttribute _defaultAttrUsage = new(AttributeTargets.All);
 
     static Extensions()
     {
@@ -49,7 +49,7 @@ internal static class Extensions
 
     public static bool IsAssignableFromReflectionOnly(this Type rtTypeTo, Type? roTypeFrom)
     {
-        if ((object?)roTypeFrom == null)
+        if (roTypeFrom is null) //same as (object?)roTypeFrom == null
         {
             return false;
         }
@@ -68,8 +68,8 @@ internal static class Extensions
         }
         else if (rtTypeTo.IsGenericParameter)
         {
-            Type[] constraints = rtTypeTo.GetGenericParameterConstraints();
-            for (int i = 0; i < constraints.Length; i++)
+            var constraints = rtTypeTo.GetGenericParameterConstraints();
+            for (var i = 0; i < constraints.Length; i++)
             {
                 if (!constraints[i].IsAssignableFromReflectionOnly(roTypeFrom))
                 {
@@ -94,13 +94,13 @@ internal static class Extensions
             throw new ArgumentOutOfRangeException(nameof(ifaceType), $"nameof(ifaceType) must be an runtime interface type");
         }
 
-        Type? t = roType;
+        var t = roType;
         while (t != null)
         {
-            Type[] interfaces = t.GetInterfaces();
+            var interfaces = t.GetInterfaces();
             if (interfaces != null)
             {
-                for (int i = 0; i < interfaces.Length; i++)
+                for (var i = 0; i < interfaces.Length; i++)
                 {
                     // Interfaces don't derive from other interfaces, they implement them.
                     // So instead of IsSubclassOf, we should use ImplementInterface instead.
@@ -235,7 +235,7 @@ internal static class Extensions
             }
             resultList.Add(attrObj);
         }
-        Attribute[] result = (Attribute[])Array.CreateInstance(attributeType, resultList.Count);
+        var result = (Attribute[])Array.CreateInstance(attributeType, resultList.Count);
         resultList.CopyTo(result);
         return result;
     }
@@ -277,7 +277,7 @@ internal static class Extensions
     {
         for (var i = 0; i < attributes.Length; i++)
         {
-            Type attrType = attributes[i].GetType();
+            var attrType = attributes[i].GetType();
 
             if (!types.TryGetValue(attrType, out var usage))
             {
@@ -347,7 +347,7 @@ internal static class Extensions
     public static ParameterInfo? GetParentDefinition(this ParameterInfo param)
     {
         // note that this only works for MethodInfo
-        MethodInfo? method = param.Member as MethodInfo;
+        var method = param.Member as MethodInfo;
 
         if (method != null)
         {
@@ -356,7 +356,7 @@ internal static class Extensions
             if (method != null)
             {
                 // Find the ParameterInfo on this method
-                ParameterInfo[] parameters = method.GetParameters();
+                var parameters = method.GetParameters();
                 return parameters[param.Position]; // Point to the correct ParameterInfo of the method
             }
         }
