@@ -104,7 +104,7 @@ public static class TypeLibEmbedder
         {
             win32ErrorCode = Marshal.GetLastWin32Error();
             throw new ApplicationException($"Error: Unable to write changes to assembly file '{settings.TargetAssembly}' using TLB file '{settings.SourceTypeLibrary}'; error code {win32ErrorCode}.");
-        };
+        }
 
         return true;
     }

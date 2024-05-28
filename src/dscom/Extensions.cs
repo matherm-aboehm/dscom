@@ -333,7 +333,7 @@ internal static class Extensions
 
     private class BlobReaderContext : CriticalFinalizerObject, IDisposable
     {
-        readonly PEReader _peReader;
+        private readonly PEReader _peReader;
         private int _disposedValue;
 
         public BlobReaderContext(PEReader peReader)

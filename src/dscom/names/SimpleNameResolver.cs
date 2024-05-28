@@ -16,6 +16,7 @@ using System.Globalization;
 using System.Reflection;
 
 namespace dSPACE.Runtime.InteropServices;
+
 internal sealed class SimpleNameResolver : INameResolver
 {
     private readonly IDictionary<string, string> _names = new Dictionary<string, string>();

@@ -29,7 +29,7 @@ internal sealed class ClassWriter : TypeWriter
         var constructorsInfo = SourceType.GetConstructors();
 
         //only one default constructor allowed
-        var constructorInfo = constructorsInfo.Where(x => !x.IsGenericMethod && x.GetParameters().Length == 0).FirstOrDefault();
+        var constructorInfo = constructorsInfo.FirstOrDefault(x => !x.IsGenericMethod && x.GetParameters().Length == 0);
         if (constructorInfo != null)
         {
             TypeFlags = TYPEFLAGS.TYPEFLAG_FCANCREATE;
@@ -54,7 +54,7 @@ internal sealed class ClassWriter : TypeWriter
 
         var interfaces = SourceType.GetInterfaces().Where(x => x.IsTypeVisibleFromCom());
 
-        Type? defaultInterfaceType = ClassInterfaceWriter != null ?
+        var defaultInterfaceType = ClassInterfaceWriter != null ?
             ClassInterfaceWriter.ComDefaultInterface :
             SourceType.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value;
         var useClassInterfaceAsDefault = false;
