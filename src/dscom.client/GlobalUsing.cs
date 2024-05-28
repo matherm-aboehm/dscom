@@ -15,7 +15,6 @@
 #pragma warning disable CS8019
 extern alias dscom;
 
-global using IReflectionOnlyModuleExtension = dscom::dSPACE.Runtime.InteropServices.IReflectionOnlyModuleExtension;
 global using CUSTDATA = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.CUSTDATA;
 global using CUSTDATAITEM = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.CUSTDATAITEM;
 global using HRESULT = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.HRESULT;
@@ -36,6 +35,7 @@ global using VARIANT = dscom::dSPACE.Runtime.InteropServices.ComTypes.Internal.V
 
 global using Constants = dscom::dSPACE.Runtime.InteropServices.Internal.Constants;
 global using Guids = dscom::dSPACE.Runtime.InteropServices.Internal.Guids;
+global using IReflectionOnlyModuleExtension = dscom::dSPACE.Runtime.InteropServices.IReflectionOnlyModuleExtension;
 global using CALLCONV = System.Runtime.InteropServices.ComTypes.CALLCONV;
 global using DISPPARAMS = System.Runtime.InteropServices.ComTypes.DISPPARAMS;
 global using ELEMDESC = System.Runtime.InteropServices.ComTypes.ELEMDESC;
