@@ -369,7 +369,7 @@ public class BuildTaskTest : BaseTest
         {
             var fileName = $"ReferencedAssembly{i}.dll";
             var filePath = Path.Combine(Path.GetTempPath(), fileName);
-            var arg = (i % 2 == 0) ? ((ValueTuple<string, string?>)(fileName, filePath)) : ((ValueTuple<string, string?>)(filePath, null));
+            var arg = (i % 2 == 0) ? (fileName, filePath) : ((ValueTuple<string, string?>)(filePath, null));
             var (fn, fp) = arg;
             var taskItem = GetTaskItem(fn, fp!, i % 2 == 0);
             taskItems.Add(taskItem);
@@ -399,7 +399,7 @@ public class BuildTaskTest : BaseTest
         {
             var fileName = $"ReferencedAssembly{i}.dll";
             var filePath = Path.Combine(Path.GetTempPath(), fileName);
-            var arg = (i % 2 == 0) ? ((ValueTuple<string, string?>)(fileName, filePath)) : ((ValueTuple<string, string?>)(filePath, null));
+            var arg = (i % 2 == 0) ? (fileName, filePath) : ((ValueTuple<string, string?>)(filePath, null));
             var (fn, fp) = arg;
             var taskItem = GetTaskItem(fn, fp!, i % 2 == 0);
             taskItems.Add(taskItem);
@@ -544,7 +544,7 @@ public class BuildTaskTest : BaseTest
         {
             var fileName = $"TypeLibrary{i}.tlb";
             var filePath = Path.Combine(Path.GetTempPath(), fileName);
-            var arg = (i % 2 == 0) ? ((ValueTuple<string, string?>)(fileName, filePath)) : ((ValueTuple<string, string?>)(filePath, null));
+            var arg = (i % 2 == 0) ? (fileName, filePath) : ((ValueTuple<string, string?>)(filePath, null));
             var (fn, fp) = arg;
             var taskItem = GetTaskItem(fn, fp!, i % 2 == 0);
             taskItems.Add(taskItem);
@@ -574,7 +574,7 @@ public class BuildTaskTest : BaseTest
         {
             var fileName = $"TypeLibrary{i}.tlb";
             var filePath = Path.Combine(Path.GetTempPath(), fileName);
-            var arg = (i % 2 == 0) ? ((ValueTuple<string, string?>)(fileName, filePath)) : ((ValueTuple<string, string?>)(filePath, null));
+            var arg = (i % 2 == 0) ? (fileName, filePath) : ((ValueTuple<string, string?>)(filePath, null));
             var (fn, fp) = arg;
             var taskItem = GetTaskItem(fn, fp!, i % 2 == 0);
             taskItems.Add(taskItem);
@@ -719,7 +719,7 @@ public class BuildTaskTest : BaseTest
         {
             var dirName = $"TypeLibrarySearchFolder{i}";
             var dirPath = Path.Combine(Path.GetTempPath(), dirName);
-            var arg = (i % 2 == 0) ? ((ValueTuple<string, string?>)(dirName, dirPath)) : ((ValueTuple<string, string?>)(dirPath, null));
+            var arg = (i % 2 == 0) ? (dirName, dirPath) : ((ValueTuple<string, string?>)(dirPath, null));
             var (dn, dp) = arg;
             var taskItem = GetTaskItem(dn, dp!, i % 2 == 0);
             taskItems.Add(taskItem);
@@ -749,7 +749,7 @@ public class BuildTaskTest : BaseTest
         {
             var dirName = $"TypeLibrarySearchFolder{i}";
             var dirPath = Path.Combine(Path.GetTempPath(), dirName);
-            var arg = (i % 2 == 0) ? ((ValueTuple<string, string?>)(dirName, dirPath)) : ((ValueTuple<string, string?>)(dirPath, null));
+            var arg = (i % 2 == 0) ? (dirName, dirPath) : ((ValueTuple<string, string?>)(dirPath, null));
             var (dn, dp) = arg;
             var taskItem = GetTaskItem(dn, dp!, i % 2 == 0);
             taskItems.Add(taskItem);

@@ -101,7 +101,7 @@ public class TypeLibConverter : ITypeLibConverter
     {
         CheckPlatform();
 
-        SYSKIND syskind = (settings.Create64BitTlb ?? Environment.Is64BitProcess) ?
+        var syskind = (settings.Create64BitTlb ?? Environment.Is64BitProcess) ?
             SYSKIND.SYS_WIN64 : SYSKIND.SYS_WIN32;
 
         OleAut32.CreateTypeLib2(syskind, settings.Out, out var typelib).ThrowIfFailed("Failed to create type library.");
@@ -114,7 +114,7 @@ public class TypeLibConverter : ITypeLibConverter
 #if NET48
     private sealed class WrappingTypeLibImporterSink : System.Runtime.InteropServices.ITypeLibImporterNotifySink
     {
-        private ITypeLibImporterNotifySink _sink;
+        private readonly ITypeLibImporterNotifySink _sink;
         public WrappingTypeLibImporterSink(ITypeLibImporterNotifySink sink)
         {
             _sink = sink;

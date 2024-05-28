@@ -122,7 +122,7 @@ public class RegistrationServices : IRegistrationServices
         public const string MsCorEEFileName = "mscoree.dll";
     }
 
-    private static Guid _managedCategoryGuid = new(RegistryKeys.ManagedCategoryGuid);
+    private static readonly Guid _managedCategoryGuid = new(RegistryKeys.ManagedCategoryGuid);
 
     #region IRegistrationServices
 
@@ -297,8 +297,8 @@ public class RegistrationServices : IRegistrationServices
 
         // If this assembly has the PIA attribute, then register it as a PIA.
         var aPIAAttrs = assembly.GetCustomAttributes<PrimaryInteropAssemblyAttribute>().ToArray();
-        int NumPIAAttrs = aPIAAttrs.Length;
-        for (int cPIAAttrs = 0; cPIAAttrs < NumPIAAttrs; cPIAAttrs++)
+        var NumPIAAttrs = aPIAAttrs.Length;
+        for (var cPIAAttrs = 0; cPIAAttrs < NumPIAAttrs; cPIAAttrs++)
         {
             RegisterPrimaryInteropAssembly(assembly, codeBase, aPIAAttrs[cPIAAttrs]);
         }
@@ -358,10 +358,10 @@ public class RegistrationServices : IRegistrationServices
 
         // If this assembly has the PIA attribute, then unregister it as a PIA.
         var aPIAAttrs = assembly.GetCustomAttributes<PrimaryInteropAssemblyAttribute>().ToArray();
-        int NumPIAAttrs = aPIAAttrs.Length;
+        var NumPIAAttrs = aPIAAttrs.Length;
         if (typesNotRemoved.Count == 0)
         {
-            for (int cPIAAttrs = 0; cPIAAttrs < NumPIAAttrs; cPIAAttrs++)
+            for (var cPIAAttrs = 0; cPIAAttrs < NumPIAAttrs; cPIAAttrs++)
             {
                 UnregisterPrimaryInteropAssembly(assembly, aPIAAttrs[cPIAAttrs]);
             }
@@ -413,30 +413,23 @@ public class RegistrationServices : IRegistrationServices
 
     private void CallUserDefinedRegistrationMethod(Type type, bool bRegister)
     {
-        bool bFunctionCalled = false;
+        var bFunctionCalled = false;
 
         // Retrieve the attribute type to use to determine if a function is the requested user defined
         // registration function.
         Type RegFuncAttrType;
-        if (bRegister)
-        {
-            RegFuncAttrType = typeof(ComRegisterFunctionAttribute);
-        }
-        else
-        {
-            RegFuncAttrType = typeof(ComUnregisterFunctionAttribute);
-        }
+        RegFuncAttrType = bRegister ? typeof(ComRegisterFunctionAttribute) : typeof(ComUnregisterFunctionAttribute);
 
-        for (Type? currType = type; !bFunctionCalled && currType != null; currType = currType.BaseType)
+        for (var currType = type; !bFunctionCalled && currType != null; currType = currType.BaseType)
         {
             // Retrieve all the methods.
-            MethodInfo[] aMethods = currType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
-            int NumMethods = aMethods.Length;
+            var aMethods = currType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+            var NumMethods = aMethods.Length;
 
             // Go through all the methods and check for the ComRegisterMethod custom attribute.
-            for (int cMethods = 0; cMethods < NumMethods; cMethods++)
+            for (var cMethods = 0; cMethods < NumMethods; cMethods++)
             {
-                MethodInfo CurrentMethod = aMethods[cMethods];
+                var CurrentMethod = aMethods[cMethods];
 
                 // Check to see if the method has the custom attribute.
                 if (CurrentMethod.GetCustomAttributes(RegFuncAttrType, true).Length != 0)
@@ -455,11 +448,11 @@ public class RegistrationServices : IRegistrationServices
                     }
 
                     // Finally check that the signature is string ret void.
-                    ParameterInfo[] aParams = CurrentMethod.GetParameters();
+                    var aParams = CurrentMethod.GetParameters();
                     if (CurrentMethod.ReturnType != typeof(void) ||
                         aParams == null ||
                         aParams.Length != 1 ||
-                        (aParams[0].ParameterType != typeof(String) && aParams[0].ParameterType != typeof(Type)))
+                        (aParams[0].ParameterType != typeof(string) && aParams[0].ParameterType != typeof(Type)))
                     {
                         if (bRegister)
                         {
@@ -485,8 +478,8 @@ public class RegistrationServices : IRegistrationServices
                     }
 
                     // The function is valid so set up the arguments to call it.
-                    Object[] objs = new Object[1];
-                    if (aParams[0].ParameterType == typeof(String))
+                    var objs = new object[1];
+                    if (aParams[0].ParameterType == typeof(string))
                     {
                         using var rootKey = GetTargetRootKey();
                         // We are dealing with the string overload of the function.
@@ -762,7 +755,7 @@ public class RegistrationServices : IRegistrationServices
         static bool IsNetFramework()
         {
             // Find space before version info
-            int ispace = RuntimeInformation.FrameworkDescription.LastIndexOf(' ');
+            var ispace = RuntimeInformation.FrameworkDescription.LastIndexOf(' ');
             var frameworkName = string.Empty;
             if (ispace != -1)
             {
@@ -1012,8 +1005,8 @@ public class RegistrationServices : IRegistrationServices
             throw new InvalidOperationException("Primary interopt assembly must be strong name signed.");
         }
 
-        String strTlbId = "{" + MarshalExtension.GetTypeLibGuidForAssembly(assembly).ToString().ToUpper(CultureInfo.InvariantCulture) + "}";
-        String strVersion = attr.MajorVersion.ToString("x", CultureInfo.InvariantCulture) + "." + attr.MinorVersion.ToString("x", CultureInfo.InvariantCulture);
+        var strTlbId = "{" + MarshalExtension.GetTypeLibGuidForAssembly(assembly).ToString().ToUpper(CultureInfo.InvariantCulture) + "}";
+        var strVersion = attr.MajorVersion.ToString("x", CultureInfo.InvariantCulture) + "." + attr.MinorVersion.ToString("x", CultureInfo.InvariantCulture);
 
         using var rootKey = GetTargetRootKey();
         // Create the HKEY_CLASS_ROOT\TypeLib key.
@@ -1032,8 +1025,8 @@ public class RegistrationServices : IRegistrationServices
 
     private static void UnregisterPrimaryInteropAssembly(Assembly assembly, PrimaryInteropAssemblyAttribute attr)
     {
-        String strTlbId = "{" + MarshalExtension.GetTypeLibGuidForAssembly(assembly).ToString().ToUpper(CultureInfo.InvariantCulture) + "}";
-        String strVersion = attr.MajorVersion.ToString("x", CultureInfo.InvariantCulture) + "." + attr.MinorVersion.ToString("x", CultureInfo.InvariantCulture);
+        var strTlbId = "{" + MarshalExtension.GetTypeLibGuidForAssembly(assembly).ToString().ToUpper(CultureInfo.InvariantCulture) + "}";
+        var strVersion = attr.MajorVersion.ToString("x", CultureInfo.InvariantCulture) + "." + attr.MinorVersion.ToString("x", CultureInfo.InvariantCulture);
 
         using var rootKey = GetTargetRootKey();
         // Try to open the HKEY_CLASS_ROOT\TypeLib key.
