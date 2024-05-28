@@ -23,7 +23,7 @@ namespace System.Runtime.InteropServices;
 [ComVisible(true)]
 public sealed class TypeLibImportClassAttribute : Attribute
 {
-    internal String _importClassName;
+    internal string _importClassName;
     /// <summary>Initializes a new instance of the <see cref="T:System.Runtime.InteropServices.TypeLibImportClassAttribute" /> class specifying the <see cref="T:System.Type" /> that exclusively uses an interface.</summary>
     /// <param name="importClass">The <see cref="T:System.Type" /> object that exclusively uses an interface.</param>
     public TypeLibImportClassAttribute(Type importClass)
@@ -32,7 +32,7 @@ public sealed class TypeLibImportClassAttribute : Attribute
     }
     /// <summary>Gets the name of a <see cref="T:System.Type" /> object that exclusively uses an interface.</summary>
     /// <returns>The name of a <see cref="T:System.Type" /> object that exclusively uses an interface.</returns>
-    public String Value { get { return _importClassName; } }
+    public string Value { get { return _importClassName; } }
 }
 
 /// <summary>Indicates that the types defined within an assembly were originally defined in a type library.</summary>
@@ -40,16 +40,16 @@ public sealed class TypeLibImportClassAttribute : Attribute
 [ComVisible(true)]
 public sealed class ImportedFromTypeLibAttribute : Attribute
 {
-    internal String _val;
+    internal string _val;
     /// <summary>Initializes a new instance of the <see cref="T:System.Runtime.InteropServices.ImportedFromTypeLibAttribute" /> class with the name of the original type library file.</summary>
     /// <param name="tlbFile">The location of the original type library file.</param>
-    public ImportedFromTypeLibAttribute(String tlbFile)
+    public ImportedFromTypeLibAttribute(string tlbFile)
     {
         _val = tlbFile;
     }
     /// <summary>Gets the name of the original type library file.</summary>
     /// <returns>The name of the original type library file.</returns>
-    public String Value { get { return _val; } }
+    public string Value { get { return _val; } }
 }
 
 /// <summary>Describes the original settings of the <see cref="T:System.Runtime.InteropServices.TYPEFLAGS" /> in the COM type library from which the type was imported.</summary>
@@ -273,7 +273,7 @@ public sealed class TypeLibVersionAttribute : Attribute
 public sealed class ManagedToNativeComInteropStubAttribute : Attribute
 {
     internal Type _classType;
-    internal String _methodName;
+    internal string _methodName;
 
     /// <summary>Initializes a new instance of the <see cref="T:System.Runtime.InteropServices.ManagedToNativeComInteropStubAttribute" /> class with the specified class type and method name.</summary>
     /// <param name="classType">The class that contains the required stub method.</param>
@@ -285,7 +285,7 @@ public sealed class ManagedToNativeComInteropStubAttribute : Attribute
     ///-or-  
     ///The method's parameter list does not match the expected parameter list for the stub.</exception>
     /// <exception cref="T:System.MethodAccessException">The interface that contains the managed interop method has no access to the stub method, because the stub method has private or protected accessibility, or because of a security issue.</exception>
-    public ManagedToNativeComInteropStubAttribute(Type classType, String methodName)
+    public ManagedToNativeComInteropStubAttribute(Type classType, string methodName)
     {
         _classType = classType;
         _methodName = methodName;
@@ -296,7 +296,7 @@ public sealed class ManagedToNativeComInteropStubAttribute : Attribute
     public Type ClassType { get { return _classType; } }
     /// <summary>Gets the name of the stub method.</summary>
     /// <returns>The name of a customized interop stub.</returns>
-    public String MethodName { get { return _methodName; } }
+    public string MethodName { get { return _methodName; } }
 }
 
 #endif
