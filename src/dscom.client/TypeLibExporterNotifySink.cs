@@ -13,8 +13,8 @@
 // limitations under the License.
 
 extern alias dscom;
-using dscom::dSPACE.Runtime.InteropServices;
 using System.Reflection;
+using dscom::dSPACE.Runtime.InteropServices;
 
 namespace dSPACE.Runtime.InteropServices;
 
