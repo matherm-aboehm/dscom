@@ -86,9 +86,15 @@ internal sealed class AssemblyResolver : MetadataAssemblyResolver, IDisposable
 
         if (rtAssembly != null)
         {
+#pragma warning disable IL3000 // single file case is handled below
             if (!string.IsNullOrEmpty(rtAssembly.Location))
             {
                 return context.LoadFromAssemblyPath(rtAssembly.Location);
+#pragma warning restore IL3000
+            }
+            else
+            {
+                return context.LoadFromStream(new MetadataOnlyPEImageStream(rtAssembly));
             }
         }
 

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Reflection;
 using System.Security;
@@ -17,12 +18,20 @@ internal sealed class ROAssemblyExtended : Assembly
     }
 
     #region Properties
+    internal const string ThrowingMessageInRAF = "This member throws an exception for assemblies embedded in a single-file app";
+
+#if NETCOREAPP
     [Obsolete("Assembly.CodeBase and Assembly.EscapedCodeBase are only included for .NET Framework compatibility. Use Assembly.Location.")]
+    [RequiresAssemblyFiles(ThrowingMessageInRAF)]
+#endif
     public override string? CodeBase => _roAssembly.CodeBase;
     public override IEnumerable<CustomAttributeData> CustomAttributes => _roAssembly.CustomAttributes;
     public override IEnumerable<TypeInfo> DefinedTypes => _roAssembly.DefinedTypes;
     public override MethodInfo? EntryPoint => _roAssembly.EntryPoint;
+#if NETCOREAPP
     [Obsolete("Assembly.CodeBase and Assembly.EscapedCodeBase are only included for .NET Framework compatibility. Use Assembly.Location.")]
+    [RequiresAssemblyFiles(ThrowingMessageInRAF)]
+#endif
     public override string EscapedCodeBase => _roAssembly.EscapedCodeBase;
     public override string? FullName => _roAssembly.FullName;
     public override Module ManifestModule => new ROModuleExtended(this, _roAssembly.ManifestModule);
@@ -32,7 +41,9 @@ internal sealed class ROAssemblyExtended : Assembly
     public override string ImageRuntimeVersion => _roAssembly.ImageRuntimeVersion;
     public override bool IsCollectible => _roAssembly.IsCollectible;
     public override bool IsDynamic => _roAssembly.IsDynamic;
+#pragma warning disable IL3000
     public override string Location => _roAssembly.Location;
+#pragma warning restore IL3000
     public override IEnumerable<Module> Modules => _roAssembly.Modules.Select(m => new ROModuleExtended(this, m));
     public override SecurityRuleSet SecurityRuleSet => _roAssembly.SecurityRuleSet;
     public override bool ReflectionOnly => _roAssembly.ReflectionOnly;
@@ -61,10 +72,19 @@ internal sealed class ROAssemblyExtended : Assembly
         => _roAssembly.GetExportedTypes().Select(t => new ROTypeExtended(this, t)).ToArray();
     public override Type[] GetForwardedTypes()
         => _roAssembly.GetForwardedTypes().Select(t => new ROTypeExtended(this, t)).ToArray();
+#if NETCOREAPP
+    [RequiresAssemblyFiles(ThrowingMessageInRAF)]
+#endif
     public override FileStream? GetFile(string name)
         => _roAssembly.GetFile(name);
+#if NETCOREAPP
+    [RequiresAssemblyFiles(ThrowingMessageInRAF)]
+#endif
     public override FileStream[] GetFiles()
         => _roAssembly.GetFiles();
+#if NETCOREAPP
+    [RequiresAssemblyFiles(ThrowingMessageInRAF)]
+#endif
     public override FileStream[] GetFiles(bool getResourceModules)
         => _roAssembly.GetFiles(getResourceModules);
     public override Module[] GetLoadedModules(bool getResourceModules)
