@@ -59,10 +59,18 @@ internal sealed class AssemblyResolver : MetadataAssemblyResolver, IDisposable
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
             var an = assembly.GetName();
-            if (an.Name == assemblyName.Name &&
-                !string.IsNullOrEmpty(assembly.Location))
+            if (an.Name == assemblyName.Name)
             {
-                return context.LoadFromAssemblyPath(assembly.Location);
+#pragma warning disable IL3000 // single file case is handled below
+                if (!string.IsNullOrEmpty(assembly.Location))
+                {
+                    return context.LoadFromAssemblyPath(assembly.Location);
+#pragma warning restore IL3000
+                }
+                else
+                {
+                    return context.LoadFromStream(new MetadataOnlyPEImageStream(assembly));
+                }
             }
         }
 
