@@ -31,7 +31,11 @@ namespace dSPACE.Runtime.InteropServices.BuildTasks;
 /// and <see cref="LoggingTypeLibExporterSink" /> as implementation for
 /// event handling.
 /// </summary>
-internal sealed class DefaultBuildContext : IBuildContext
+internal sealed class DefaultBuildContext :
+#if !NET5_0_OR_GREATER
+    MarshalByRefObject,
+#endif
+    IBuildContext
 {
     /// <inheritdoc cref="IBuildContext.IsRunningOnWindows" />
     public bool IsRunningOnWindows => SystemInteropServices.RuntimeInformation.IsOSPlatform(SystemInteropServices.OSPlatform.Windows);
@@ -42,6 +46,48 @@ internal sealed class DefaultBuildContext : IBuildContext
 #else
     /// <inheritdoc cref="IBuildContext.RuntimeDescription" />
     public string RuntimeDescription => $"{SystemInteropServices.RuntimeInformation.OSDescription} {SystemInteropServices.RuntimeInformation.OSArchitecture} ({SystemInteropServices.RuntimeInformation.ProcessArchitecture} [{SystemInteropServices.RuntimeInformation.FrameworkDescription}])";
+
+    private bool IsLoadContext { get; }
+
+    // Need a proxy type here, so that IDisposable implementation can do AppDomain.Unload
+    // from the original AppDomain where the instance of this type was created.
+    // It wouldn't work when implemented on the remote object itself, because the Dispose()
+    // call would then be redirected to the AppDomain, which is about to be unloaded, and then
+    // block the unloading (or throws exception).
+    // see: https://learn.microsoft.com/de-de/dotnet/api/system.appdomainunloadedexception?view=net-8.0
+    private sealed class BuildContextProxy : IBuildContext, IDisposable
+    {
+        private readonly IBuildContext _remoteObj;
+        private readonly AppDomain _domain;
+
+        public BuildContextProxy(IBuildContext remoteObj, AppDomain domain)
+        {
+            _remoteObj = remoteObj;
+            _domain = domain;
+        }
+
+        public void Dispose()
+        {
+            AppDomain.Unload(_domain);
+            GC.SuppressFinalize(this);
+        }
+
+        public bool IsRunningOnWindows => _remoteObj.IsRunningOnWindows;
+        public string RuntimeDescription => _remoteObj.RuntimeDescription;
+        public bool ConvertAssemblyToTypeLib(TypeLibConverterSettings settings, TaskLoggingHelper log)
+            => _remoteObj.ConvertAssemblyToTypeLib(settings, log);
+        public bool EmbedTypeLib(TypeLibEmbedderSettings settings, TaskLoggingHelper log)
+            => _remoteObj.EmbedTypeLib(settings, log);
+        public bool EnsureDirectoryExists(string? directoryPath)
+            => _remoteObj.EnsureDirectoryExists(directoryPath);
+        public bool EnsureFileExists(string? fileNameAndPath)
+            => _remoteObj.EnsureFileExists(fileNameAndPath);
+    }
+
+    public DefaultBuildContext(bool isLoadContext = false)
+    {
+        IsLoadContext = isLoadContext;
+    }
 #endif
 
     /// <inheritdoc cref="IBuildContext.EnsureFileExists(string?)" />
@@ -64,8 +110,12 @@ internal sealed class DefaultBuildContext : IBuildContext
         var loadContext = CreateLoadContext(settings, log);
         var assembly = LoadAssembly(settings, loadContext, log);
 #else
-        log.LogWarning("Unloading assemblies is only supported with .NET 5 or later. Please remove all remaining MsBuild processes before rebuild.");
-        var assembly = LoadAssembly(settings, log);
+        if (!IsLoadContext)
+        {
+            using var loadContext = CreateLoadContext();
+            return loadContext.ConvertAssemblyToTypeLib(settings, log);
+        }
+        var assembly = LoadAssembly(settings, log, out var resolveHandler);
 #endif
 
         if (assembly is null)
@@ -130,6 +180,11 @@ internal sealed class DefaultBuildContext : IBuildContext
             {
                 log.LogWarning("Failed to unload the assembly load context.");
             }
+        }
+#else
+        finally
+        {
+            AppDomain.CurrentDomain.AssemblyResolve -= resolveHandler;
         }
 #endif
     }
@@ -221,28 +276,49 @@ internal sealed class DefaultBuildContext : IBuildContext
     }
 #else
     /// <summary>
+    /// Creates an instance of <see cref="BuildContextProxy"/> that will
+    /// redirect all calls to a remote object on another <see cref="AppDomain"/>, so that
+    /// it can take care of the loading and unloading the target assemblies and 
+    /// the other <see cref="AppDomain"/> can be unloaded afterwards.
+    /// </summary>
+    /// <returns>A <see cref="BuildContextProxy"/> that can be unloaded.</returns>
+    /// <exception cref="InvalidOperationException">Creating remote object in other AppDomain failed.</exception>
+    private static BuildContextProxy CreateLoadContext()
+    {
+        var setup = AppDomain.CurrentDomain.SetupInformation;
+        var evidence = AppDomain.CurrentDomain.Evidence;
+        var newDomain = AppDomain.CreateDomain($"msbuild-load-ctx-{Guid.NewGuid()}", evidence, setup);
+
+        var proxiedType = typeof(DefaultBuildContext);
+        var remoteObj = (IBuildContext)newDomain.CreateInstanceAndUnwrap(
+            proxiedType.Assembly.FullName, proxiedType.FullName, false,
+            BindingFlags.Default, null, new object?[] { true }, null, null)
+            ?? throw new InvalidOperationException("Failed to create instance in other AppDomain.");
+        var loadContext = new BuildContextProxy(remoteObj, newDomain);
+        return loadContext;
+    }
+
+    /// <summary>
     /// Tries to load the assembly specified in the <paramref name="settings"/> using the current
     /// <see cref="AppDomain"/>. If the assembly cannot be loaded, the result will be <c>null</c>.
     /// </summary>
     /// <param name="settings">The settings.</param>
     /// <param name="log">The log to write messages to.</param>
+    /// <param name="resolveHandler">When the method returns, this parameter contains the
+    /// <see cref="ResolveEventHandler" /> that was registered by this method on the current
+    /// <see cref="AppDomain"/>. It can be used to unregister it, when it is no longer needed.</param>
     /// <returns>The assembly loaded.</returns>
-    private static Assembly? LoadAssembly(TypeLibConverterSettings settings, TaskLoggingHelper log)
+    private static Assembly? LoadAssembly(TypeLibConverterSettings settings, TaskLoggingHelper log, out ResolveEventHandler resolveHandler)
     {
+        var appDomain = AppDomain.CurrentDomain;
+        resolveHandler = CreateResolveHandler(settings, log);
+        var detachResolveHandler = false;
         try
         {
             var content = File.ReadAllBytes(settings.Assembly);
-            var appDomain = AppDomain.CurrentDomain;
-            var resolveHandler = CreateResolveHandler(settings, log);
-            try
-            {
-                appDomain.AssemblyResolve += resolveHandler;
-                return appDomain.Load(content);
-            }
-            finally
-            {
-                appDomain.AssemblyResolve -= resolveHandler;
-            }
+
+            appDomain.AssemblyResolve += resolveHandler;
+            return appDomain.Load(content);
         }
         catch (Exception e) when
             (e is ArgumentNullException
@@ -254,8 +330,21 @@ internal sealed class DefaultBuildContext : IBuildContext
                or NotSupportedException
                or SecurityException)
         {
+            detachResolveHandler = true;
             log.LogErrorFromException(e, true, true, settings.Assembly);
             return default;
+        }
+        catch
+        {
+            detachResolveHandler = true;
+            throw;
+        }
+        finally
+        {
+            if (detachResolveHandler)
+            {
+                appDomain.AssemblyResolve -= resolveHandler;
+            }
         }
     }
 
