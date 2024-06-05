@@ -100,7 +100,7 @@ public sealed class TlbExport : Microsoft.Build.Utilities.Task
     /// </summary>
     public string[] Names { get; set; } = Array.Empty<string>();
 
-    /// <inheritdoc cref="Task.Execute()" />
+    /// <inheritdoc cref="Microsoft.Build.Utilities.Task.Execute()" />
     public override bool Execute()
     {
         var targetAssemblyFile = GetTargetRuntimeAssembly();

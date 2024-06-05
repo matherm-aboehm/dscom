@@ -54,7 +54,7 @@ public interface IBuildContext
     /// When implemented in a derived class, the conversion will take place
     /// trying to load the assembly specified in the <see cref="TypeLibConverterSettings.Assembly" />
     /// of the specified <paramref name="settings" /> object and convert it to the type library specified in
-    /// the <see cref="TypeLibConverterSettings.TypeLibrary" /> of the same parameter.
+    /// the <see cref="TypeLibConverterSettings.Out" /> of the same parameter.
     /// Errors, warnings and conversion messages will be written to the build <paramref name="log" />.
     /// </summary>
     /// <param name="settings">The conversion settings to apply to the built-in converter.</param>
