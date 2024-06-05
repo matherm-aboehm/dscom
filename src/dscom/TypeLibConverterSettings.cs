@@ -17,6 +17,7 @@ namespace dSPACE.Runtime.InteropServices;
 /// <summary>
 ///  Represents the settings used by <see cref="TypeLibConverter"/>.
 /// </summary>
+[Serializable]
 public class TypeLibConverterSettings
 {
     /// <summary>
