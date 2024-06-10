@@ -77,6 +77,12 @@ public struct HRESULT
         return new(value);
     }
 
+    public static HRESULT FROM_WIN32(int error)
+    {
+        const int FACILITY_WIN32 = 7;
+        return error <= 0 ? (HRESULT)error : (HRESULT)((((uint)error) & 0x0000FFFF) | (FACILITY_WIN32 << 16) | 0x80000000);
+    }
+
     [SecurityCritical, SecuritySafeCritical]
     public readonly void ThrowIfFailed(string? message = null)
     {
