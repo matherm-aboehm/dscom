@@ -24,7 +24,7 @@ using System.Runtime.InteropServices;
 namespace dSPACE.Runtime.InteropServices;
 
 [ExcludeFromCodeCoverage]
-internal static class Extensions
+internal static partial class Extensions
 {
 #if NETFRAMEWORK || NETSTANDARD
     /// <summary>
