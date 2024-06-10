@@ -52,7 +52,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\dscom\dscom.csproj" Aliases="dscom" />
+    <ProjectReference Include="..\dscom\dscom.csproj" />
   </ItemGroup>
 
 </Project>

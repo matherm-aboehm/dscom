@@ -1,5 +1,9 @@
+#if NET5_0_OR_GREATER
 using System.Diagnostics.CodeAnalysis;
+#endif
+#if NETCOREAPP
 using System.Linq.Expressions;
+#endif
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
@@ -10,13 +14,18 @@ internal sealed class ROModuleExtended : Module, IReflectionOnlyModuleExtension
 {
     private readonly ROAssemblyExtended _roAssemblyExtended;
     private readonly Module _roModule;
+#if NETCOREAPP
     private static Func<Module, MetadataReader>? _getInternalReaderFunc;
+#else
+    private readonly Lazy<MetadataReader> _metadataReader;
+#endif
 
     public ROModuleExtended(ROAssemblyExtended roAssemblyExtended, Module roModule)
     {
         _roAssemblyExtended = roAssemblyExtended._roAssembly == roModule.Assembly ?
             roAssemblyExtended : new ROAssemblyExtended(roModule.Assembly);
         _roModule = roModule;
+#if NETCOREAPP
         if (_getInternalReaderFunc == null)
         {
             var roModuleType = _roModule.GetType();
@@ -33,17 +42,38 @@ internal sealed class ROModuleExtended : Module, IReflectionOnlyModuleExtension
             _getInternalReaderFunc = Expression.Lambda<Func<Module, MetadataReader>>(
                 bodyExp, modParamExp).Compile();
         }
+#else
+        _metadataReader = new Lazy<MetadataReader>(() =>
+        {
+            unsafe
+            {
+                var runtimeAssembly = _roAssemblyExtended._roAssembly;
+                if (runtimeAssembly.TryGetRawMetadata(out var matadataBlob, out var len))
+                {
+                    return new MetadataReader(matadataBlob, len);
+                }
+                else
+                {
+                    throw new InvalidOperationException($"Assembly {runtimeAssembly} with Type {runtimeAssembly.GetType()} doesn't provide metadata.");
+                }
+            }
+        });
+#endif
     }
 
     public override Assembly Assembly => _roAssemblyExtended;
     internal const string UnknownStringMessageInRAF = "Returns <Unknown> for modules with no file path";
 
-#if NETCOREAPP
+#if NET5_0_OR_GREATER
     [RequiresAssemblyFiles(UnknownStringMessageInRAF)]
 #endif
     public override string FullyQualifiedName => _roModule.FullyQualifiedName;
     public override IEnumerable<CustomAttributeData> CustomAttributes => base.CustomAttributes;
+#if NETCOREAPP
     public MetadataReader Reader => _getInternalReaderFunc!(_roModule);
+#else
+    public MetadataReader Reader => _metadataReader.Value;
+#endif
 
     public override IList<CustomAttributeData> GetCustomAttributesData()
         => _roModule.GetCustomAttributesData();
@@ -56,6 +86,7 @@ internal sealed class ROModuleExtended : Module, IReflectionOnlyModuleExtension
 
     public override byte[] ResolveSignature(int metadataToken)
     {
+#if NETCOREAPP
         var reader = Reader;
         var handle = MetadataTokens.Handle(metadataToken);
         var sigHandle = handle.Kind switch
@@ -69,6 +100,9 @@ internal sealed class ROModuleExtended : Module, IReflectionOnlyModuleExtension
             _ => throw new InvalidOperationException($"can not resolve signature of token with kind {handle.Kind}")
         };
         return reader.GetBlobBytes(sigHandle);
+#else
+        return _roModule.ResolveSignature(metadataToken);
+#endif
     }
     #region Object overrides
     public override bool Equals(object? obj)

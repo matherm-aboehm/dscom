@@ -1,4 +1,6 @@
+#if NET5_0_OR_GREATER
 using System.Diagnostics.CodeAnalysis;
+#endif
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -15,7 +17,11 @@ internal sealed class ROTypeExtended : Type
 
     public ROTypeExtended(ROAssemblyExtended roAssemblyExtended, Type roType)
     {
-        if (!roType.Assembly.ReflectionOnly)
+        if (!roType.Assembly.ReflectionOnly
+#if !NETCOREAPP
+            && roType.Assembly != Extensions._mscorlib
+#endif
+        )
         {
             throw new ArgumentOutOfRangeException(nameof(roType), $"{nameof(roType)} must be from reflection-only load context.");
         }
@@ -34,7 +40,9 @@ internal sealed class ROTypeExtended : Type
     public override string? FullName => _roType.FullName;
     public override Guid GUID => _roType.GUID;
     public override int MetadataToken => _roType.MetadataToken;
-    public override Module Module => _roModuleExtended ??= new ROModuleExtended(_roAssemblyExtended, _roType.Module);
+    public override Module Module => _roModuleExtended ??=
+        (_roAssemblyExtended._roAssembly.ManifestModule == _roType.Module) ?
+        (ROModuleExtended)_roAssemblyExtended.ManifestModule : new ROModuleExtended(_roAssemblyExtended, _roType.Module);
     public override string? Namespace => _roType.Namespace;
     public override Type UnderlyingSystemType => _roType.UnderlyingSystemType == _roType ?
         this : new ROTypeExtended(_roAssemblyExtended, _roType.UnderlyingSystemType);
@@ -163,7 +171,9 @@ internal sealed class ROTypeExtended : Type
         => _roType.GetFields(bindingAttr)
             .Select(fi => new ROFieldInfoExtended(this, fi)).ToArray();
 
+#if NET5_0_OR_GREATER
     [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)]
+#endif
     public override Type? GetInterface(string name, bool ignoreCase)
     {
         var intf = _roType.GetInterface(name, ignoreCase);
