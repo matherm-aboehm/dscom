@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-extern alias dscom;
 
 using System.CommandLine;
 using System.CommandLine.NamingConventionBinder;
@@ -20,7 +19,6 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using dscom::dSPACE.Runtime.InteropServices;
 
 #pragma warning disable CA1861 
 
