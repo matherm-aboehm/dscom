@@ -1,4 +1,6 @@
+#if NET5_0_OR_GREATER
 using System.Diagnostics.CodeAnalysis;
+#endif
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Reflection.Metadata;
@@ -38,7 +40,7 @@ internal sealed class ROModuleExtended : Module, IReflectionOnlyModuleExtension
     public override Assembly Assembly => _roAssemblyExtended;
     internal const string UnknownStringMessageInRAF = "Returns <Unknown> for modules with no file path";
 
-#if NETCOREAPP
+#if NET5_0_OR_GREATER
     [RequiresAssemblyFiles(UnknownStringMessageInRAF)]
 #endif
     public override string FullyQualifiedName => _roModule.FullyQualifiedName;

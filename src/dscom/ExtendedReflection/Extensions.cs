@@ -3,22 +3,44 @@ using System.Runtime.CompilerServices;
 
 namespace dSPACE.Runtime.InteropServices;
 
-internal static class Extensions
+internal static partial class Extensions
 {
     private static readonly ILookup<string, Assembly> _mappingForwardedTypesFrom;
+#if !NETCOREAPP
+    internal static readonly Assembly _mscorlib;
+#endif
     private static readonly AttributeUsageAttribute _defaultAttrUsage = new(AttributeTargets.All);
 
     static Extensions()
     {
+#if NETCOREAPP
         _mappingForwardedTypesFrom = (from a in AppDomain.CurrentDomain.GetAssemblies()
                                       from t in a.GetForwardedTypes()
                                       select (t, a))
                                       .ToLookup(ta => ta.t.FullName!, ta => ta.a);
+#else
+        _mscorlib = typeof(object).Assembly;
+        var miGetCustomAttribute = typeof(TypeForwardedToAttribute).GetMethod(
+            "GetCustomAttribute", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)
+            ?? throw new MissingMemberException(typeof(TypeForwardedToAttribute).FullName, "GetCustomAttribute");
+        var delType = typeof(Func<,>).MakeGenericType(typeof(Extensions).Assembly.GetType(), typeof(TypeForwardedToAttribute[]));
+        var delGetCustomAttribute = miGetCustomAttribute.CreateDelegate(delType);
+        _mappingForwardedTypesFrom = (from a in AppDomain.CurrentDomain.GetAssemblies()
+                                      from ta in (TypeForwardedToAttribute[])delGetCustomAttribute.DynamicInvoke(a)!
+                                      select (t: ta.Destination, a))
+                                      .ToLookup(ta => ta.t.FullName!, ta => ta.a);
+#endif
     }
 
     public static bool EqualsToRuntimeType(this Type roType, Type rtType)
     {
-        if (!roType.Assembly.ReflectionOnly)
+        if (!roType.Assembly.ReflectionOnly
+#if !NETCOREAPP
+        // mscorlib can't be loaded into reflection-only context
+        // https://learn.microsoft.com/en-us/dotnet/framework/reflection-and-codedom/how-to-load-assemblies-into-the-reflection-only-context
+            && roType.Assembly != _mscorlib
+#endif
+        )
         {
             throw new ArgumentOutOfRangeException(nameof(roType));
         }
@@ -85,7 +107,11 @@ internal static class Extensions
 
     public static bool ImplementInterface(this Type roType, Type ifaceType)
     {
-        if (!roType.Assembly.ReflectionOnly)
+        if (!roType.Assembly.ReflectionOnly
+#if !NETCOREAPP
+            && roType.Assembly != _mscorlib
+#endif
+        )
         {
             throw new ArgumentOutOfRangeException(nameof(roType));
         }
@@ -120,7 +146,11 @@ internal static class Extensions
 
     public static bool IsSubclassOfRuntimeType(this Type roType, Type rtType)
     {
-        if (!roType.Assembly.ReflectionOnly)
+        if (!roType.Assembly.ReflectionOnly
+#if !NETCOREAPP
+            && roType.Assembly != _mscorlib
+#endif
+        )
         {
             throw new ArgumentOutOfRangeException(nameof(roType));
         }
@@ -171,6 +201,12 @@ internal static class Extensions
 
     public static Type? ToRuntimeType(this Type roType)
     {
+#if !NETCOREAPP
+        if (!roType.Assembly.ReflectionOnly)
+        {
+            return roType;
+        }
+#endif
         var roAssemblyName = roType.Assembly.GetName();
         var runtimeAssemblies = AppDomain.CurrentDomain.GetAssemblies().Where(a => IsEqualForReflectionOnly(a.GetName(), roAssemblyName));
         return runtimeAssemblies.Select(a => a.GetType(roType.FullName!)).FirstOrDefault();
@@ -308,7 +344,7 @@ internal static class Extensions
             // not exactly the same as lookup by slot #, but good enough for most cases
             // and it is only using public API.
             var all = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
-            return parent.GetMethod(mi.Name, all, mi.GetParameters().Select(pi => pi.ParameterType).ToArray());
+            return parent.GetMethod(mi.Name, all, null, mi.GetParameters().Select(pi => pi.ParameterType).ToArray(), null);
         }
         return null;
     }
