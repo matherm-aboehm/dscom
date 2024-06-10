@@ -13,9 +13,6 @@
 // limitations under the License.
 
 using System.Reflection;
-#if NET5_0_OR_GREATER
-using System.Runtime.Loader;
-#endif
 using System.Security;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
@@ -174,17 +171,17 @@ internal sealed class DefaultBuildContext :
         {
             try
             {
-                loadContext.Unload();
+                loadContext.Dispose();
             }
-            catch (InvalidOperationException)
+            catch (Exception e)
             {
-                log.LogWarning("Failed to unload the assembly load context.");
+                log.LogWarningFromException(new InvalidOperationException("Failed to unload the assembly load context.", e));
             }
         }
 #else
         finally
         {
-            AppDomain.CurrentDomain.AssemblyResolve -= resolveHandler;
+            AppDomain.CurrentDomain.ReflectionOnlyAssemblyResolve -= resolveHandler;
         }
 #endif
     }
@@ -210,27 +207,43 @@ internal sealed class DefaultBuildContext :
     }
 
 #if NET5_0_OR_GREATER
+    private sealed class BuildContextAssemblyResolver : MetadataAssemblyResolver
+    {
+        public string LoadContextName { get; }
+        public TypeLibConverterSettings Settings { get; }
+        public TaskLoggingHelper Log { get; }
+        public BuildContextAssemblyResolver(string name, TypeLibConverterSettings settings, TaskLoggingHelper log)
+        {
+            LoadContextName = name;
+            Settings = settings;
+            Log = log;
+        }
+
+        public override Assembly? Resolve(MetadataLoadContext context, AssemblyName assemblyName)
+        {
+            if (TryResolveAssemblyFromSettings(assemblyName.Name ?? string.Empty, Settings, Log, out var assemblyPath))
+            {
+                return context.LoadFromAssemblyPath(assemblyPath);
+            }
+
+            Log.LogWarning("Failed to resolve {0} from the following files: {1}", assemblyName.Name, string.Join(", ", Settings.ASMPath));
+
+            return default;
+        }
+    }
+
     /// <summary>
-    /// Creates an instance of <see cref="AssemblyLoadContext"/> that will
+    /// Creates an instance of <see cref="MetadataLoadContext"/> that will
     /// take care of the loading and unloading the target assemblies and 
     /// can be unloaded afterwards.
     /// </summary>
     /// <param name="settings">The type library settings.</param>
-    /// <returns>An <see cref="AssemblyLoadContext"/> that can be unloaded.</returns>
-    private static AssemblyLoadContext CreateLoadContext(TypeLibConverterSettings settings, TaskLoggingHelper log)
+    /// <returns>A <see cref="MetadataLoadContext"/> that can be unloaded.</returns>
+    private static MetadataLoadContext CreateLoadContext(TypeLibConverterSettings settings, TaskLoggingHelper log)
     {
-        var loadContext = new AssemblyLoadContext($"msbuild-load-ctx-{Guid.NewGuid()}", true);
-        loadContext.Resolving += (ctx, name) =>
-        {
-            if (TryResolveAssemblyFromSettings(name.Name ?? string.Empty, settings, log, out var assemblyPath))
-            {
-                return ctx.LoadFromAssemblyPath(assemblyPath);
-            }
-
-            log.LogWarning("Failed to resolve {0} from the following files: {1}", name.Name, string.Join(", ", settings.ASMPath));
-
-            return default;
-        };
+        var loadContext = new MetadataLoadContext(
+            new BuildContextAssemblyResolver($"msbuild-load-ctx-{Guid.NewGuid()}",
+                settings, log));
 
         return loadContext;
     }
@@ -243,7 +256,7 @@ internal sealed class DefaultBuildContext :
     /// <param name="loadContext">The assembly load context.</param>
     /// <param name="log">The log to write messages to.</param>
     /// <returns>The assembly loaded.</returns>
-    private static Assembly? LoadAssembly(TypeLibConverterSettings settings, AssemblyLoadContext loadContext, TaskLoggingHelper log)
+    private static Assembly? LoadAssembly(TypeLibConverterSettings settings, MetadataLoadContext loadContext, TaskLoggingHelper log)
     {
         Assembly assembly;
         try
@@ -262,17 +275,17 @@ internal sealed class DefaultBuildContext :
             log.LogErrorFromException(e, true, true, settings.Assembly);
             try
             {
-                loadContext.Unload();
+                loadContext.Dispose();
             }
-            catch (InvalidOperationException)
+            catch (Exception e2)
             {
-                log.LogWarning("Failed to unload the following assembly: {0}.", settings.Assembly);
+                log.LogWarningFromException(new InvalidOperationException($"Failed to unload the following assembly: {settings.Assembly}.", e2));
             }
 
             return default;
         }
 
-        return assembly;
+        return new ROAssemblyExtended(assembly);
     }
 #else
     /// <summary>
@@ -317,8 +330,8 @@ internal sealed class DefaultBuildContext :
         {
             var content = File.ReadAllBytes(settings.Assembly);
 
-            appDomain.AssemblyResolve += resolveHandler;
-            return appDomain.Load(content);
+            appDomain.ReflectionOnlyAssemblyResolve += resolveHandler;
+            return new ROAssemblyExtended(Assembly.ReflectionOnlyLoad(content));
         }
         catch (Exception e) when
             (e is ArgumentNullException
@@ -343,7 +356,7 @@ internal sealed class DefaultBuildContext :
         {
             if (detachResolveHandler)
             {
-                appDomain.AssemblyResolve -= resolveHandler;
+                appDomain.ReflectionOnlyAssemblyResolve -= resolveHandler;
             }
         }
     }
@@ -358,9 +371,10 @@ internal sealed class DefaultBuildContext :
     {
         Assembly? AssemblyResolveClosure(object? sender, ResolveEventArgs args)
         {
-            if (TryResolveAssemblyFromSettings(args.Name ?? string.Empty, settings, log, out var assemblyPath))
+            var assemblyName = new AssemblyName(args.Name);
+            if (TryResolveAssemblyFromSettings(assemblyName.Name ?? string.Empty, settings, log, out var assemblyPath))
             {
-                return AppDomain.CurrentDomain.Load(assemblyPath);
+                return Assembly.ReflectionOnlyLoadFrom(assemblyPath);
             }
 
             log.LogWarning("Failed to resolve assembly: {0}", args.Name);
