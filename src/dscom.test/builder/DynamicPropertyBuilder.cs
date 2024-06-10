@@ -61,7 +61,7 @@ internal sealed class DynamicPropertyBuilder : DynamicBuilder<DynamicPropertyBui
                 PropertyType,
                 _indexParameterBuilder.GetParameterTypes());
 
-            _indexParameterBuilder.AddParameters(getterMethodBuilder, 0);
+            _indexParameterBuilder.AddParameters(getterMethodBuilder);
 
             if (_returnTypeCustomAttributes != null)
             {
@@ -72,7 +72,7 @@ internal sealed class DynamicPropertyBuilder : DynamicBuilder<DynamicPropertyBui
                 var attributeBuilder = new CustomAttributeBuilder(attributeConstructor!, new object[] { attributeParam });
 
                 var returnValueParameterBuilder =
-                    getterMethodBuilder.DefineParameter(_indexParameterBuilder.Count, ParameterAttributes.Retval, null);
+                    getterMethodBuilder.DefineParameter(0, ParameterAttributes.Retval, null);
                 returnValueParameterBuilder.SetCustomAttribute(attributeBuilder);
             }
 
@@ -81,10 +81,8 @@ internal sealed class DynamicPropertyBuilder : DynamicBuilder<DynamicPropertyBui
 
         if (IsSettable)
         {
-            var parameterTypes = Enumerable
-                .Repeat(PropertyType, 1)
-                .Concat(_indexParameterBuilder.GetParameterTypes())
-                .ToArray();
+            var parameterTypes = _indexParameterBuilder.GetParameterTypes()
+                .Append(PropertyType).ToArray();
 
             var specialName = $"set_{Name}";
             var setterMethodBuilder = _dynamicTypeBuilder.TypeBuilder.DefineMethod(
@@ -94,7 +92,7 @@ internal sealed class DynamicPropertyBuilder : DynamicBuilder<DynamicPropertyBui
                 null,
                 parameterTypes);
 
-            _indexParameterBuilder.AddParameters(setterMethodBuilder, 1);
+            _indexParameterBuilder.AddParameters(setterMethodBuilder);
 
             if (_parameterCustomAttributes != null)
             {
@@ -105,7 +103,7 @@ internal sealed class DynamicPropertyBuilder : DynamicBuilder<DynamicPropertyBui
                 var attributeBuilder = new CustomAttributeBuilder(attributeConstructor!, new object[] { attributeParam });
 
                 var returnValueParameterBuilder =
-                    setterMethodBuilder.DefineParameter(1, ParameterAttributes.HasFieldMarshal, null);
+                    setterMethodBuilder.DefineParameter(_indexParameterBuilder.Count + 1, ParameterAttributes.HasFieldMarshal, null);
 
                 returnValueParameterBuilder.SetCustomAttribute(attributeBuilder);
             }
