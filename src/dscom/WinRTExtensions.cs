@@ -97,7 +97,11 @@ internal static class WinRTExtensions
         }
         try
         {
+#if NETCOREAPP
             assembly = AppDomain.CurrentDomain.Load(simpleName);
+#else
+            assembly = Assembly.LoadWithPartialName(simpleName);
+#endif
         }
         catch (FileNotFoundException)
         {
@@ -164,6 +168,10 @@ internal static class WinRTExtensions
         {
             if (_getIsWindowsRuntimeObject != null && !type.Assembly.ReflectionOnly)
             {
+                if (type is ROTypeExtended extended)
+                {
+                    type = extended._roType;
+                }
                 return _getIsWindowsRuntimeObject(type);
             }
         }
@@ -206,6 +214,10 @@ internal static class WinRTExtensions
     {
         try
         {
+            if (type is ROTypeExtended extended)
+            {
+                type = extended._roType;
+            }
             return _getIsExportedToWindowsRuntime?.Invoke(type) ?? false;
         }
         catch (NotImplementedException) { return false; }

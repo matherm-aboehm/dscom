@@ -1,4 +1,6 @@
+#if NET5_0_OR_GREATER
 using System.Diagnostics.CodeAnalysis;
+#endif
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -15,7 +17,11 @@ internal sealed class ROTypeExtended : Type
 
     public ROTypeExtended(ROAssemblyExtended roAssemblyExtended, Type roType)
     {
-        if (!roType.Assembly.ReflectionOnly)
+        if (!roType.Assembly.ReflectionOnly
+#if !NETCOREAPP
+            && roType.Assembly != Extensions._mscorlib
+#endif
+        )
         {
             throw new ArgumentOutOfRangeException(nameof(roType), $"{nameof(roType)} must be from reflection-only load context.");
         }
@@ -163,7 +169,9 @@ internal sealed class ROTypeExtended : Type
         => _roType.GetFields(bindingAttr)
             .Select(fi => new ROFieldInfoExtended(this, fi)).ToArray();
 
+#if NET5_0_OR_GREATER
     [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)]
+#endif
     public override Type? GetInterface(string name, bool ignoreCase)
     {
         var intf = _roType.GetInterface(name, ignoreCase);

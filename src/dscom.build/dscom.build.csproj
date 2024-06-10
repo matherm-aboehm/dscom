@@ -5,7 +5,8 @@
     <AssemblyName>dSPACE.Runtime.InteropServices.BuildTasks</AssemblyName>
     <TargetFrameworks>net8.0;$(DsComBuildTargetFrameWork);net48</TargetFrameworks>
     <PlatformTarget>x64</PlatformTarget>
-    <RootNamespace>dSPACE.Runtime.InteropServices.BuildTasks</RootNamespace>    <MinVerVerbosity Condition="'$(Configuration)' == 'Debug'">normal</MinVerVerbosity>
+    <RootNamespace>dSPACE.Runtime.InteropServices.BuildTasks</RootNamespace>
+    <MinVerVerbosity Condition="'$(Configuration)' == 'Debug'">normal</MinVerVerbosity>
     <MinVerTagPrefix>v</MinVerTagPrefix>
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
     <BuildOutputTargetFolder>build\_dscom\</BuildOutputTargetFolder>
@@ -30,6 +31,8 @@
     <PackageProjectUrl>https://github.com/dspace-group/dscom</PackageProjectUrl>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <PackageTags>com;tlb;ole;idl;tlbexp;interop;typelib;ConvertAssemblyToTypeLib;TypeLibConverter;MsBuild</PackageTags>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\dscom\dscom.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -42,6 +45,8 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="System.Reflection.MetadataLoadContext" Version="6.0.0" Condition="'$(TargetFramework)' == 'net6.0'" />
+    <PackageReference Include="System.Reflection.MetadataLoadContext" Version="8.0.0" Condition="'$(TargetFramework)' == 'net8.0'" />
     <None Include="..\dscom\packageIcon.png" Pack="true" PackagePath="\" />
     <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
