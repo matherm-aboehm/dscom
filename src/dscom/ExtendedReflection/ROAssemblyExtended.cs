@@ -1,4 +1,6 @@
+#if NET5_0_OR_GREATER
 using System.Diagnostics.CodeAnalysis;
+#endif
 using System.Globalization;
 using System.Reflection;
 using System.Security;
@@ -10,7 +12,11 @@ internal sealed class ROAssemblyExtended : Assembly
     internal readonly Assembly _roAssembly;
     public ROAssemblyExtended(Assembly roAssembly)
     {
-        if (!roAssembly.ReflectionOnly)
+        if (!roAssembly.ReflectionOnly
+#if !NETCOREAPP
+            && roAssembly != Extensions._mscorlib
+#endif
+        )
         {
             throw new ArgumentOutOfRangeException(nameof(roAssembly), $"{nameof(roAssembly)} must be from reflection-only load context.");
         }
@@ -20,7 +26,7 @@ internal sealed class ROAssemblyExtended : Assembly
     #region Properties
     internal const string ThrowingMessageInRAF = "This member throws an exception for assemblies embedded in a single-file app";
 
-#if NETCOREAPP
+#if NET5_0_OR_GREATER
     [Obsolete("Assembly.CodeBase and Assembly.EscapedCodeBase are only included for .NET Framework compatibility. Use Assembly.Location.")]
     [RequiresAssemblyFiles(ThrowingMessageInRAF)]
 #endif
@@ -28,18 +34,22 @@ internal sealed class ROAssemblyExtended : Assembly
     public override IEnumerable<CustomAttributeData> CustomAttributes => _roAssembly.CustomAttributes;
     public override IEnumerable<TypeInfo> DefinedTypes => _roAssembly.DefinedTypes;
     public override MethodInfo? EntryPoint => _roAssembly.EntryPoint;
-#if NETCOREAPP
+#if NET5_0_OR_GREATER
     [Obsolete("Assembly.CodeBase and Assembly.EscapedCodeBase are only included for .NET Framework compatibility. Use Assembly.Location.")]
     [RequiresAssemblyFiles(ThrowingMessageInRAF)]
 #endif
     public override string EscapedCodeBase => _roAssembly.EscapedCodeBase;
     public override string? FullName => _roAssembly.FullName;
     public override Module ManifestModule => new ROModuleExtended(this, _roAssembly.ManifestModule);
+#if NET5_0_OR_GREATER
     [Obsolete("The Global Assembly Cache is not supported.")]
+#endif
     public override bool GlobalAssemblyCache => _roAssembly.GlobalAssemblyCache;
     public override long HostContext => _roAssembly.HostContext;
     public override string ImageRuntimeVersion => _roAssembly.ImageRuntimeVersion;
+#if NETCOREAPP
     public override bool IsCollectible => _roAssembly.IsCollectible;
+#endif
     public override bool IsDynamic => _roAssembly.IsDynamic;
 #pragma warning disable IL3000
     public override string Location => _roAssembly.Location;
@@ -70,19 +80,21 @@ internal sealed class ROAssemblyExtended : Assembly
         => _roAssembly.GetTypes().Select(t => new ROTypeExtended(this, t)).ToArray();
     public override Type[] GetExportedTypes()
         => _roAssembly.GetExportedTypes().Select(t => new ROTypeExtended(this, t)).ToArray();
+#if NETCOREAPP
     public override Type[] GetForwardedTypes()
         => _roAssembly.GetForwardedTypes().Select(t => new ROTypeExtended(this, t)).ToArray();
-#if NETCOREAPP
+#endif
+#if NET5_0_OR_GREATER
     [RequiresAssemblyFiles(ThrowingMessageInRAF)]
 #endif
     public override FileStream? GetFile(string name)
         => _roAssembly.GetFile(name);
-#if NETCOREAPP
+#if NET5_0_OR_GREATER
     [RequiresAssemblyFiles(ThrowingMessageInRAF)]
 #endif
     public override FileStream[] GetFiles()
         => _roAssembly.GetFiles();
-#if NETCOREAPP
+#if NET5_0_OR_GREATER
     [RequiresAssemblyFiles(ThrowingMessageInRAF)]
 #endif
     public override FileStream[] GetFiles(bool getResourceModules)

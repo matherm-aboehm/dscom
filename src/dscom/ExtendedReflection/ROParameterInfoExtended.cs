@@ -28,7 +28,27 @@ internal sealed class ROParameterInfoExtended : ParameterInfo
     public override ParameterAttributes Attributes => _roParameterInfo.Attributes;
     public override object? DefaultValue
         => new CustomAttributeTypedArgument(ParameterType, RawDefaultValue).ToRuntimeTypedValue();
+#if NETCOREAPP
     public override bool HasDefaultValue => _roParameterInfo.HasDefaultValue;
+#else
+    public override bool HasDefaultValue
+    {
+        get
+        {
+            if (!_roAssemblyExtended.ReflectionOnly)
+            {
+                return _roParameterInfo.HasDefaultValue;
+            }
+            var rawdefault = RawDefaultValue;
+            if (rawdefault == DBNull.Value || (IsOptional && rawdefault == Type.Missing))
+            {
+                return false;
+            }
+            return true;
+        }
+    }
+
+#endif
     public override MemberInfo Member => _roMemberExtended;
     public override int MetadataToken => _roParameterInfo.MetadataToken;
     public override string? Name => _roParameterInfo.Name;
