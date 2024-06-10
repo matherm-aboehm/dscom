@@ -64,7 +64,7 @@ public class BuildTaskTest : BaseTest
 
         public int ColumnNumberOfTaskNode => 1;
 
-        public string ProjectFileOfTaskNode => "demo.test.csproj";
+        public string ProjectFileOfTaskNode => "dscom.test.assembly.csproj";
 
         public int NumberOfCustomLogEvents { get; private set; }
 
@@ -134,26 +134,93 @@ public class BuildTaskTest : BaseTest
         return new BuildContextStub();
     }
 
-    private static TlbExport GetBuildTask(out BuildContextStub context, bool shouldSucceed = true)
+    private static TlbExport GetBuildTask(out BuildContextStub? context, bool shouldSucceed = true, bool useDefaultContext = false)
     {
-        context = GetBuildContext();
-        context.ShouldSucceed = shouldSucceed;
-        var classUnderTest = new TlbExport(context)
+        context = null;
+        TlbExport classUnderTest;
+        if (!useDefaultContext)
         {
-            BuildEngine = new BuildEngineStub()
-        };
+            context = GetBuildContext();
+            context.ShouldSucceed = shouldSucceed;
+            classUnderTest = new TlbExport(context)
+            {
+                BuildEngine = new BuildEngineStub()
+            };
+        }
+        else
+        {
+            // MetadataLoadContext has no way to automatically resolve runtime assemblies,
+            // they must be resolved manually with the custom MetadataAssemblyResolver. 
+            // So, init AssemblyPaths with runtime assembly paths, when testing default
+            // build context, which just simulates what MSBuild Targets file would do.
+            var taskItems = new List<ITaskItem>();
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (!assembly.IsDynamic && !string.IsNullOrEmpty(assembly.Location))
+                {
+                    taskItems.Add(GetTaskItem(assembly.Location));
+                }
+            }
+            classUnderTest = new TlbExport
+            {
+                AssemblyPaths = taskItems.ToArray(),
+                BuildEngine = new BuildEngineStub()
+            };
+        }
         return classUnderTest;
     }
 
-    private static TlbEmbed GetEmbedTask(out BuildContextStub context, bool shouldSucceed = true)
+    private static TlbEmbed GetEmbedTask(out BuildContextStub? context, bool shouldSucceed = true, bool useDefaultContext = false)
     {
-        context = GetBuildContext();
-        context.ShouldSucceed = shouldSucceed;
-        var classUnderTest = new TlbEmbed(context)
+        context = null;
+        TlbEmbed classUnderTest;
+        if (!useDefaultContext)
         {
-            BuildEngine = new BuildEngineStub()
-        };
+            context = GetBuildContext();
+            context.ShouldSucceed = shouldSucceed;
+            classUnderTest = new TlbEmbed(context)
+            {
+                BuildEngine = new BuildEngineStub()
+            };
+        }
+        else
+        {
+            classUnderTest = new TlbEmbed
+            {
+                BuildEngine = new BuildEngineStub()
+            };
+        }
         return classUnderTest;
+    }
+
+    private static string GetAbsolutePathToDemoProjectOutput(string projectName, string fileName)
+    {
+        var workdir = new DirectoryInfo(Environment.CurrentDirectory).Parent?.Parent?.Parent?.Parent?.Parent;
+        if (workdir == null || !workdir.Exists)
+        {
+            throw new DirectoryNotFoundException("Workdir not found.");
+        }
+#if DEBUG
+        var configuration = "Debug";
+#else
+        var configuration = "Release";
+#endif
+#if NET48
+        var targetFramework = "net48";
+#elif NET6_0
+        var targetFramework = "net6.0";
+#elif NET8_0
+        var targetFramework = "net8.0";
+#endif
+        var outDirWithoutTfm = Path.Combine(workdir.FullName, "src", projectName, "bin", configuration);
+#if !NET48
+        var outDirSpecificPlatform = Path.Combine(outDirWithoutTfm, targetFramework + "-windows");
+        if (Directory.Exists(outDirSpecificPlatform))
+        {
+            return Path.Combine(outDirSpecificPlatform, fileName);
+        }
+#endif
+        return Path.Combine(outDirWithoutTfm, targetFramework, fileName);
     }
 
     [Fact]
@@ -168,7 +235,7 @@ public class BuildTaskTest : BaseTest
     public void TestDefaultSettingsFailingOnNonWindows()
     {
         var task = GetBuildTask(out var context);
-        context.IsRunningOnWindows = false;
+        context!.IsRunningOnWindows = false;
         Assert.False(task.Execute());
         Assert.True(task.Log.HasLoggedErrors);
     }
@@ -179,6 +246,14 @@ public class BuildTaskTest : BaseTest
         var task = GetBuildTask(out _, false);
         Assert.False(task.Execute());
         Assert.False(task.Log.HasLoggedErrors);
+    }
+
+    [Fact]
+    public void TestDefaultSettingsFailsWithDefaultContext()
+    {
+        var task = GetBuildTask(out _, useDefaultContext: true);
+        Assert.False(task.Execute());
+        Assert.True(task.Log.HasLoggedErrors);
     }
 
     [Fact]
@@ -215,17 +290,32 @@ public class BuildTaskTest : BaseTest
         Assert.False(task.Log.HasLoggedErrors);
     }
 
-    [Fact]
-    public void TestAssemblyFileCheckSuccess()
+    [Theory]
+    [InlineData(false, null, "MyAssemblyFile.dll")]
+    [InlineData(true, "dscom.test.assembly", "dSPACE.Runtime.InteropServices.Test.Assembly.dll")]
+    public void TestAssemblyFileCheckSuccess(bool useDefaultContext, string? projectName, string assemblyFileName)
     {
-        var task = GetBuildTask(out var context);
-        var assemblyFileName = "MyAssemblyFile.dll";
-        var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
+        var task = GetBuildTask(out var context, useDefaultContext: useDefaultContext);
+        var assemblyFilePath = !useDefaultContext ?
+            Path.Combine(Path.GetTempPath(), assemblyFileName) :
+            GetAbsolutePathToDemoProjectOutput(projectName!, assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        if (!useDefaultContext)
+        {
+            context!.ExistingFiles.Add(assemblyFilePath);
+        }
+        else
+        {
+            var taskItem = GetTaskItem(assemblyFilePath);
+            task.AssemblyPaths = task.AssemblyPaths.Append(taskItem).ToArray();
+            var tlbFileName = $"{Guid.NewGuid()}.tlb";
+            var tlbFilePath = Path.Combine(Environment.CurrentDirectory, tlbFileName);
+            task.TargetFile = tlbFilePath;
+        }
 
         Assert.True(task.Execute());
         Assert.False(task.Log.HasLoggedErrors);
+        Assert.Equal(0, ((BuildEngineStub)task.BuildEngine).NumberOfWarningLogEvents); // "No warning should be present"
     }
 
     [Fact]
@@ -235,7 +325,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath + ".notExisting");
+        context!.ExistingFiles.Add(assemblyFilePath + ".notExisting");
 
         Assert.False(task.Execute());
         Assert.True(task.Log.HasLoggedErrors);
@@ -248,7 +338,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var taskItems = new List<ITaskItem>();
         for (var i = 1; i <= 5; i++)
@@ -274,7 +364,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var notFoundByRandom = new Random().Next(5) + 1;
 
@@ -305,7 +395,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var taskItems = new List<ITaskItem>();
         for (var i = 1; i <= 5; i++)
@@ -331,7 +421,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var notFoundByRandom = new Random().Next(5) + 1;
 
@@ -362,7 +452,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var taskItems = new List<ITaskItem>();
         for (var i = 1; i <= 5; i++)
@@ -390,7 +480,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var notFoundByRandom = new Random().Next(5) + 1;
 
@@ -423,7 +513,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var taskItems = new List<ITaskItem>();
         for (var i = 1; i <= 5; i++)
@@ -449,7 +539,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var notFoundByRandom = new Random().Next(5) + 1;
 
@@ -480,7 +570,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var taskItems = new List<ITaskItem>();
         for (var i = 1; i <= 5; i++)
@@ -506,7 +596,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var notFoundByRandom = new Random().Next(5) + 1;
 
@@ -537,7 +627,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var taskItems = new List<ITaskItem>();
         for (var i = 1; i <= 5; i++)
@@ -565,7 +655,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var notFoundByRandom = new Random().Next(5) + 1;
 
@@ -598,7 +688,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var taskItems = new List<ITaskItem>();
         for (var i = 1; i <= 5; i++)
@@ -624,7 +714,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var notFoundByRandom = new Random().Next(5) + 1;
 
@@ -655,7 +745,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var taskItems = new List<ITaskItem>();
         for (var i = 1; i <= 5; i++)
@@ -681,7 +771,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var notFoundByRandom = new Random().Next(5) + 1;
 
@@ -712,7 +802,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var taskItems = new List<ITaskItem>();
         for (var i = 1; i <= 5; i++)
@@ -740,7 +830,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         var notFoundByRandom = new Random().Next(5) + 1;
 
@@ -773,7 +863,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         context.ShouldSucceed = true;
 
@@ -788,7 +878,7 @@ public class BuildTaskTest : BaseTest
         var assemblyFileName = "MyAssemblyFile.dll";
         var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
         task.SourceAssemblyFile = assemblyFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
+        context!.ExistingFiles.Add(assemblyFilePath);
 
         context.ShouldSucceed = false;
 
@@ -796,25 +886,50 @@ public class BuildTaskTest : BaseTest
         Assert.False(task.Log.HasLoggedErrors);
     }
 
-    [Fact]
-    public void TestEmbedIsSuccessful()
+    [Theory]
+    [InlineData(false, null, "MyAssemblyFile.dll")]
+    [InlineData(true, "dscom.test.assembly", "dSPACE.Runtime.InteropServices.Test.Assembly.dll")]
+    public void TestEmbedIsSuccessful(bool useDefaultContext, string? projectName, string assemblyFileName)
     {
-        var task = GetEmbedTask(out var context);
-        var assemblyFileName = "MyAssemblyFile.dll";
-        var tlbFileName = "MyAssemblyFile.tlb";
+        var task = GetEmbedTask(out var context, useDefaultContext: useDefaultContext);
 
-        var assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
-        var tlbFilePath = Path.Combine(Path.GetTempPath(), tlbFileName);
+        string assemblyFilePath;
+        string tlbFilePath;
+        if (!useDefaultContext)
+        {
+            assemblyFilePath = Path.Combine(Path.GetTempPath(), assemblyFileName);
+            var tlbFileName = Path.ChangeExtension(assemblyFileName, "tlb");
+            tlbFilePath = Path.Combine(Path.GetTempPath(), tlbFileName);
+        }
+        else
+        {
+            assemblyFilePath = Path.Combine(Environment.CurrentDirectory, $"{Guid.NewGuid()}.dll");
+            File.Copy(GetAbsolutePathToDemoProjectOutput(projectName!, assemblyFileName), assemblyFilePath);
+            TestAssemblyFileCheckSuccess(useDefaultContext, projectName, assemblyFileName);
+            tlbFilePath = Directory.GetFiles(Environment.CurrentDirectory, "*.tlb").First();
+        }
         task.TargetAssemblyFile = assemblyFilePath;
         task.SourceTlbFile = tlbFilePath;
-        context.ExistingFiles.Add(assemblyFilePath);
-        context.ExistingFiles.Add(tlbFilePath);
+        if (!useDefaultContext)
+        {
+            context!.ExistingFiles.Add(assemblyFilePath);
+            context!.ExistingFiles.Add(tlbFilePath);
 
-        context.ShouldSucceed = true;
+            context!.ShouldSucceed = true;
+        }
 
-        Assert.True(task.Execute());
-        Assert.False(task.Log.HasLoggedErrors);
+        try
+        {
+            Assert.True(task.Execute());
+            Assert.False(task.Log.HasLoggedErrors);
+        }
+        finally
+        {
+            if (useDefaultContext)
+            {
+                File.Delete(assemblyFilePath);
+            }
+        }
     }
-
 }
 
