@@ -18,6 +18,7 @@ using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
 
 using COMException = System.Runtime.InteropServices.COMException;
+using ICreateTypeLib2 = dSPACE.Runtime.InteropServices.ComTypes.Internal.ICreateTypeLib2;
 using SystemInteropServices = System.Runtime.InteropServices;
 
 namespace dSPACE.Runtime.InteropServices.BuildTasks;
@@ -142,6 +143,10 @@ internal sealed class DefaultBuildContext :
             }
             else
             {
+                if (tlb is ICreateTypeLib2 createTypeLib2)
+                {
+                    createTypeLib2.SaveAllChanges().ThrowIfFailed($"Failed to save type library {settings.Out}.");
+                }
                 log.LogMessage(MessageImportance.High, "Finished generation of the following type library: {0}", settings.Out);
             }
 

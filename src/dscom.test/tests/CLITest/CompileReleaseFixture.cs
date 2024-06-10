@@ -39,7 +39,21 @@ public class CompileReleaseFixture : IDisposable
             var lockTaken = false;
             Monitor.Enter(this, ref lockTaken);
             _lockTaken = lockTaken ? 1 : 0;
-            _owner.PrepareTestDirectory();
+            try
+            {
+                _owner.PrepareTestDirectory();
+            }
+            catch
+            {
+                if (lockTaken)
+                {
+                    // don't risk a deadlock on exception, just release the lock
+                    // and let another thread take the lock.
+                    _lockTaken = 0;
+                    Monitor.Exit(this);
+                }
+                throw;
+            }
         }
     }
 
@@ -121,15 +135,32 @@ public class CompileReleaseFixture : IDisposable
     {
         using FileSystemWatcher watcher = new(dirpath, filter);
         using CountdownEvent cde = new(1);
-        watcher.Deleted += (s, e) =>
+        watcher.Renamed += (s, e) =>
         {
             cde.Signal();
         };
         watcher.EnableRaisingEvents = true;
-        foreach (var file in Directory.EnumerateFiles(dirpath, filter))
+        foreach (var file in Directory.GetFiles(dirpath, filter))
         {
             cde.AddCount();
-            File.Delete(file);
+            //HINT: Some anti-virus can still block deletion of file although its deletion
+            // event was raised already, so use rename operation followed by a delete here.
+            var tmpfile = Path.Combine(dirpath, $"{Guid.NewGuid}.tmp");
+            File.Move(file, tmpfile);
+            var retry = true;
+            do
+            {
+                try
+                {
+                    File.Delete(tmpfile);
+                    retry = false;
+                }
+                catch (IOException e) when
+                    (e.HResult == unchecked((int)0x80070020) /* HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION) */)
+                {
+                    Thread.Sleep(100);
+                }
+            } while (retry);
         }
         cde.Signal();
         cde.Wait();
