@@ -37,17 +37,21 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Add all items with hintpath -->
-    <_DsComFromReferencesWithoutHintPath Include="@(References)" Exclude="@(References->HasMetadata('HintPath'))"/>
+    <!-- Add all items without hintpath -->
+    <_DsComFromReferencesWithoutHintPath Include="@(Reference)" Exclude="@(Reference->HasMetadata('HintPath'))"/>
     <!-- Add all items with empty hintpath (Reference might be restored other way) -->
-    <_DsComFromReferencesWithEmptyHintPath Include="@(References->HasMetadata('HintPath')->WithMetadata('HintPath', ''))"/>
+    <_DsComFromReferencesWithEmptyHintPath Include="@(Reference->HasMetadata('HintPath')->WithMetadata('HintPath', ''))"/>
+    <!-- Add all items with non-empty hintpath -->
+    <_DsComFromReferencesWithHintPath Include="@(Reference->HasMetadata('HintPath'))" Exclude="@(_DsComFromReferencesWithEmptyHintPath)" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(DsComTlbExportAutoAddReferences)' == 'true'">
     <!-- Automatically include all referenced assembly files without a hint path -->
     <_DsComReferences Include="@(_DsComFromReferencesWithEmptyHintPath)" Condition="'$(DsComTlbExportIncludeReferencesWithoutHintPath)' == 'true'" />
+    <!-- Automatically include all referenced assembly files without a hint path -->
+    <_DsComReferences Include="@(_DsComFromReferencesWithoutHintPath)" Condition="'$(DsComTlbExportIncludeReferencesWithoutHintPath)' == 'true'" />
     <!-- Automatically include all referenced assembly files providing a hint path -->
-    <_DsComReferences Include="@(_DsComFromReferencesWithoutHintPath)" />
+    <_DsComReferences Include="@(_DsComFromReferencesWithHintPath)" />
     <DsComTlbExportAssemblyPaths Include="@(_DsComReferences)"/>
   </ItemGroup>
 
