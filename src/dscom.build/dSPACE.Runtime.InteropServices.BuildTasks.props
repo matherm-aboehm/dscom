@@ -33,8 +33,10 @@
     <DsComRegisterTypeLibrariesAfterBuild>false</DsComRegisterTypeLibrariesAfterBuild>
     <!-- Automatically add references to export -->
     <DsComTlbExportAutoAddReferences>true</DsComTlbExportAutoAddReferences>
-    <!-- Do not add references, if HintPath Property is not set -->
-    <DsComTlbExportIncludeReferencesWithoutHintPath>false</DsComTlbExportIncludeReferencesWithoutHintPath>
+    <!-- Use resolved references, if references are added automatically -->
+    <DsComTlbExportAddResolvedReferences>true</DsComTlbExportAddResolvedReferences>
+    <!-- Add references, if HintPath Property is not set -->
+    <DsComTlbExportIncludeReferencesWithoutHintPath>true</DsComTlbExportIncludeReferencesWithoutHintPath>
     <!-- No value used by default. -->
     <DsComOverideLibraryName></DsComOverideLibraryName>
     <!-- Do not embed type library after build -->
