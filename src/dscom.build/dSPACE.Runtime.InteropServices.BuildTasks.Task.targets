@@ -21,7 +21,11 @@
 
   <PropertyGroup>
     <_DsComTargetFramework>net6.0</_DsComTargetFramework>
-    <_DsComTargetFramework Condition="'$(TargetFramework)' == 'net48'">$(TargetFramework)</_DsComTargetFramework>
+    <!-- Use the right task assembly for the runtime MSBuild is executing on
+         Maybe someday .NET Core tasks can run all MSBuild variants, so a single task assembly can be used.
+         Tracked issue: https://github.com/dotnet/msbuild/issues/4834 -->
+    <_DsComTargetFramework Condition="'$(MSBuildRuntimeType)' != 'Core'">net48</_DsComTargetFramework>
+    <_DsComTargetFramework Condition="'$(MSBuildRuntimeType)' == 'Core' AND '$(NETCoreSdkVersion)' &gt;= '8.0'">net8.0</_DsComTargetFramework>
     <!-- Find DsCom Build Tasks -->
     <_DsComTaskAssemblyFile>$(MsBuildThisFileDirectory)_dscom\$(_DsComTargetFramework)\dSPACE.Runtime.InteropServices.BuildTasks.dll</_DsComTaskAssemblyFile>
   </PropertyGroup>
@@ -29,6 +33,26 @@
   <!-- Embed task -->
   <UsingTask AssemblyFile="$(_DsComTaskAssemblyFile)" TaskName="dSPACE.Runtime.InteropServices.BuildTasks.TlbExport" />
   <UsingTask AssemblyFile="$(_DsComTaskAssemblyFile)" TaskName="dSPACE.Runtime.InteropServices.BuildTasks.TlbEmbed" />
+
+  <!-- This target can be used to let MSBuild resolve the assembly references for export task.
+       Use DsComTlbExportAddResolvedReferences property to automatically schedule this target.
+       The following issues are possible with SDK style projects, when not using this target:
+       - "Reference" item list will only be filled correctly after automatic resolution of framework assemblies is done,
+         but not before build files of this package are imported, so items are missing from DsComTlbExportAssemblyPaths
+       - export target assumes "Reference" item identities are full file paths except those items with HintPath metadata,
+         where the metadata is used as the full file path, but identities of those items are only assembly names, which can
+         also be strong names, so export task can't load them
+       - export target doesn't depend on default ResolveReferences target which will resolve most of the problems above
+  -->
+  <Target Name="DsComTlbExportAddResolvedAssemblyReferences"
+          Condition="'$(DsComTlbExportAutoAddReferences)' == 'true' AND '$(DsComTlbExportAddResolvedReferences)' == 'true'"
+          DependsOnTargets="ResolveReferences">
+    <ItemGroup>
+      <DsComTlbExportAssemblyPaths Remove="%(ReferencePath.OriginalItemSpec)" />
+      <!-- HintPath metadata was already used to resolve the assembly, so clear this for the items the export task is using -->
+      <DsComTlbExportAssemblyPaths Include="@(ReferencePath->ClearMetadata())" />
+    </ItemGroup>
+  </Target>
   
   <!-- 
       Create a target to be called after the build has taken place. (Target assembly must exist).
@@ -38,7 +62,8 @@
           AfterTargets="AfterBuild" 
           Inputs="$(_DsComExportTypeLibraryAssemblyFile)"
           Outputs="$(_DsComExportTypeLibraryTargetFile)"
-          Condition="'$(Platform)' == 'x64' OR '$(Platform)' == 'AnyCPU'">
+          Condition="'$(Platform)' == 'x64' OR '$(Platform)' == 'AnyCPU'"
+          DependsOnTargets="DsComTlbExportAddResolvedAssemblyReferences">
     <!-- Export Type library on build -->
     <TlbExport 
       TlbOverriddenId="$(DsComTypeLibraryUniqueId)"
