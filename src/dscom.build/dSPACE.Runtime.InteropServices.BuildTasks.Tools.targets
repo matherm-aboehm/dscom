@@ -18,22 +18,49 @@
   <PropertyGroup>
     <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
   </PropertyGroup>
- 
+
   <PropertyGroup>
     <_DsComToolsFileDir>$(MsBuildThisFileDirectory)..\tools\x64\</_DsComToolsFileDir>
     <_DsComToolsFileDir Condition="'$(Platform)' == 'x86' OR ('$(Platform)' == 'AnyCPU' AND '$(SolutionPlatform)' == 'x86') OR '$(NETCoreSdkRuntimeIdentifier)' == 'win-x86'">$(MsBuildThisFileDirectory)..\tools\x86\</_DsComToolsFileDir>
     <_DsComToolsFileDir Condition="'$(PlatformTarget)' == 'x86'">$(MsBuildThisFileDirectory)..\tools\x86\</_DsComToolsFileDir>
   </PropertyGroup>
 
+  <!-- This target can be used to let MSBuild resolve the assembly references and convert it to the right format
+       for command line parameters. Use DsComTlbExportAddResolvedReferences property to automatically schedule this target.
+       The following issues are possible with SDK style projects, when not using this target:
+       - "Reference" item list will only be filled correctly after automatic resolution of framework assemblies is done,
+         but not before build files of this package are imported, so items are missing from DsComTlbExportAssemblyPaths
+       - export target assumes "Reference" item identities are full file paths except those items with HintPath metadata,
+         where the metadata is used as the full file path, but identities of those items are only assembly names, which can
+         also be strong names, so command line tool can't load them
+       - command line tool should behave like tlbexp, so adding "Reference" items as file paths (when it actually would be a file path)
+         to the "/asmpath" command line parameter will fail, because it only works with directory paths (see src\dscom.client\AssemblyResolver.cs)
+       - export target doesn't depend on default ResolveReferences target which will resolve most of the problems above
+  -->
+  <Target Name="DsComTlbExportAddResolvedAssemblyReferences"
+          Condition="'$(DsComTlbExportAutoAddReferences)' == 'true' AND '$(DsComTlbExportAddResolvedReferences)' == 'true'"
+          DependsOnTargets="ResolveReferences">
+    <ItemGroup>
+      <!-- HintPath metadata was already used to resolve the assembly, so clear this to not use it again later on -->
+      <_TempDsComAssemblyPaths Include="@(ReferencePath->'%(RootDir)%(Directory)'->Distinct()->ClearMetadata())" />
+      <DsComTlbExportAssemblyPaths Remove="@(DsComTlbExportAssemblyPaths)" />
+      <DsComTlbExportAssemblyPaths Include="@(_TempDsComAssemblyPaths)"
+                                   Condition="!HasTrailingSlash(%(_TempDsComAssemblyPaths.Identity))"/>
+      <DsComTlbExportAssemblyPaths Include="@(_TempDsComAssemblyPaths->TrimEnd('\'))"
+                                   Condition="HasTrailingSlash(%(_TempDsComAssemblyPaths.Identity))" />
+    </ItemGroup>
+  </Target>
+
   <!-- 
       Create a target to be called after the build has taken place. (Target assembly must exist).
       Call target only if target file has changed or resulting type library is missing.
   -->
-  <Target Name="DsComExportTypeLibraryAfterBuild" 
-          AfterTargets="AfterBuild" 
+  <Target Name="DsComExportTypeLibraryAfterBuild"
+          AfterTargets="AfterBuild"
           Inputs="$(_DsComExportTypeLibraryAssemblyFile)"
           Outputs="$(_DsComExportTypeLibraryTargetFile)"
-          Condition="'$(_DsComToolsFileDir)' != ''">
+          Condition="'$(_DsComToolsFileDir)' != ''"
+          DependsOnTargets="DsComTlbExportAddResolvedAssemblyReferences">
     <ItemGroup>
       <_DsComTlbExportAssemblyPathsWithHintPath Include="@(DsComTlbExportAssemblyPaths->HasMetadata('HintPath'))" />
       <_DsComTlbExportAssemblyPathsWithoutHintPath Include="@(DsComTlbExportAssemblyPaths)" />
@@ -44,7 +71,7 @@
       <_DsComTypeLibraryReferences Condition="@(DsComTlbExportTlbReferences->Count()) &gt; 0">--tlbreference "@(DsComTlbExportTlbReferences, '" --tlbreference "')"</_DsComTypeLibraryReferences>
       <_DsComTypeLibraryReferencePaths Condition="@(DsComTlbExportReferencePaths->Count()) &gt; 0">--tlbrefpath "@(DsComTlbExportReferencePaths, '" --tlbrefpath "')"</_DsComTypeLibraryReferencePaths>
       <_DsComAssemblyReferences Condition="@(_DsComTlbExportAssemblyPathsWithoutHintPath->Count()) &gt; 0">--asmpath "@(_DsComTlbExportAssemblyPathsWithoutHintPath, '" --asmpath "')"</_DsComAssemblyReferences>
-      <_DsComAssemblyReferences Condition="@(_DsComTlbExportAssemblyPathsWithHintPath->Count()) &gt; 0">--asmpath "@(_DsComTlbExportAssemblyPathsWithHintPath->GetMetadata('HintPath'), '" --asmpath "')"</_DsComAssemblyReferences>
+      <_DsComAssemblyReferences Condition="@(_DsComTlbExportAssemblyPathsWithHintPath->Count()) &gt; 0">--asmpath "@(_DsComTlbExportAssemblyPathsWithHintPath->Metadata('HintPath'), '" --asmpath "')"</_DsComAssemblyReferences>
       <_DsComAliasNames Condition="@(DsComTlbAliasNames->Count()) &gt; 0">--names @(DsComTlbAliasNames, --names)</_DsComAliasNames>
       <_DsComArguments>tlbexport</_DsComArguments>
       <_DsComArguments Condition="'$(DsComTypeLibraryUniqueId)' != '' AND '$(DsComTypeLibraryUniqueId)' != '$([System.Guid]::Empty.ToString())'">$(_DsComArguments) --overridetlbid "$(DsComTypeLibraryUniqueId)"</_DsComArguments>
@@ -57,15 +84,15 @@
       <_DsComArguments Condition="'$(DsComOverideLibraryName)' != ''"> $(_DsComArguments) --overridename "$(DsComOverideLibraryName)"</_DsComArguments>
       <_DsComArguments Condition="'$(DsComTlbExportCreateMissingDependentTlbs)' != ''"> $(_DsComArguments) --createmissingdependenttlbs $(DsComTlbExportCreateMissingDependentTlbs)</_DsComArguments>
       <_DsComArguments> $(_DsComArguments) --out "$(_DsComExportTypeLibraryTargetFile)"</_DsComArguments>
-	    <_DsComWorkingDir>$(OutDir)</_DsComWorkingDir> 
-	    <_DsComWorkingDir Condition="$(_DsComWorkingDir) == ''">$(OutputPath)</_DsComWorkingDir> 
+      <_DsComWorkingDir>$(OutDir)</_DsComWorkingDir>
+      <_DsComWorkingDir Condition="$(_DsComWorkingDir) == ''">$(OutputPath)</_DsComWorkingDir>
     </PropertyGroup>
-    
+
     <Message Importance="High" Text="Calling dscom.exe to export type library" />
     <Message Importance="Low" Text="Using arguments '$(_DsComArguments)' to call dscom" />
-    
+
     <Exec Command='"$(_DsComToolsFileDir)dscom.exe" $(_DsComArguments)'
-          ConsoleToMsBuild="true" 
+          ConsoleToMsBuild="true"
           StdErrEncoding="UTF-8"
           StdOutEncoding="UTF-8"
           IgnoreExitCode="false"
