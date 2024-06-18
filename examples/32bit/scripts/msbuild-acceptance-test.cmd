@@ -1,12 +1,15 @@
 @ECHO off
 
 SET root=%~dp0\..\..\..\
+SET logs=%~dp0\..\logs
+IF NOT EXIST %logs% MKDIR %logs%
 
 PUSHD %root%
 
 dotnet build-server shutdown
 
-dotnet pack src\dscom.build\dscom.build.csproj -p:Configuration=Release
+dotnet pack src\dscom.build\dscom.build.csproj -p:Configuration=Release -bl:%logs%\pack.binlog
+SET ERPACK=%ERRORLEVEL%
 
 IF NOT EXIST %root%\_packages MKDIR _packages
 
@@ -33,81 +36,81 @@ dotnet build-server shutdown
 
 dotnet add comtestdotnet.csproj package --prerelease -s %root%\_packages dSPACE.Runtime.InteropServices.BuildTasks
 
-dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net48 -p:PerformAcceptanceTest=Runtime
+dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=x64 -p:TargetFramework=net48 -p:PerformAcceptanceTest=Runtime
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net48 -p:PerformAcceptanceTest=Runtime -bl:%~dp0\net48x64.binlog
+dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetFramework=net48 -p:PerformAcceptanceTest=Runtime -bl:%logs%\net48x64.binlog
 
 SET ERRUNTIMEX64_NET48=%ERRORLEVEL%
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net48 -p:PerformAcceptanceTest=Runtime -p:DsComRegisterTypeLibrariesAfterBuild=true -bl:%~dp0\net48x64_reg.binlog
+dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetFramework=net48 -p:PerformAcceptanceTest=Runtime -p:DsComRegisterTypeLibrariesAfterBuild=true -bl:%logs%\net48x64_reg.binlog
 
 SET ERRUNTIMEX64_NET48_REG=%ERRORLEVEL%
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net6.0-windows -p:PerformAcceptanceTest=Runtime
+dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=x64 -p:TargetFramework=net6.0-windows -p:PerformAcceptanceTest=Runtime
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net6.0-windows -p:PerformAcceptanceTest=Runtime -bl:%~dp0\net60x64.binlog
+dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetFramework=net6.0-windows -p:PerformAcceptanceTest=Runtime -bl:%logs%\net60x64.binlog
 
 SET ERRUNTIMEX64_NET60=%ERRORLEVEL%
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net8.0-windows -p:PerformAcceptanceTest=Runtime
+dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=x64 -p:TargetFramework=net8.0-windows -p:PerformAcceptanceTest=Runtime
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net8.0-windows -p:PerformAcceptanceTest=Runtime -bl:%~dp0\net80x64.binlog
+dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetFramework=net8.0-windows -p:PerformAcceptanceTest=Runtime -bl:%logs%\net80x64.binlog
 
 SET ERRUNTIMEX64_NET80=%ERRORLEVEL%
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net8.0-windows -p:PerformAcceptanceTest=Runtime -p:DsComRegisterTypeLibrariesAfterBuild=true -bl:%~dp0\net80x64_reg.binlog
+dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetFramework=net8.0-windows -p:PerformAcceptanceTest=Runtime -p:DsComRegisterTypeLibrariesAfterBuild=true -bl:%logs%\net80x64_reg.binlog
 
 SET ERRUNTIMEX64_NET80_REG=%ERRORLEVEL%
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=x86 -p:TargetPlatform=net48 -p:PerformAcceptanceTest=Runtime
+dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=x86 -p:TargetFramework=net48 -p:PerformAcceptanceTest=Runtime
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x86 -p:TargetPlatform=net48 -p:PerformAcceptanceTest=Runtime -bl:%~dp0\net48x86.binlog
+dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x86 -p:TargetFramework=net48 -p:PerformAcceptanceTest=Runtime -bl:%logs%\net48x86.binlog
 SET ERRUNTIMEX86_NET48=%ERRORLEVEL%
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x86 -p:TargetPlatform=net48 -p:PerformAcceptanceTest=Runtime -p:DsComRegisterTypeLibrariesAfterBuild=true -bl:%~dp0\net48x86_reg.binlog
+dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x86 -p:TargetFramework=net48 -p:PerformAcceptanceTest=Runtime -p:DsComRegisterTypeLibrariesAfterBuild=true -bl:%logs%\net48x86_reg.binlog
 SET ERRUNTIMEX86_NET48_REG=%ERRORLEVEL%
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=x86 -p:TargetPlatform=net6.0-windows -p:PerformAcceptanceTest=Runtime
+dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=x86 -p:TargetFramework=net6.0-windows -p:PerformAcceptanceTest=Runtime
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x86 -p:TargetPlatform=net6.0-windows -p:PerformAcceptanceTest=Runtime -bl:%~dp0\net60x86.binlog
+dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x86 -p:TargetFramework=net6.0-windows -p:PerformAcceptanceTest=Runtime -bl:%logs%\net60x86.binlog
 SET ERRUNTIMEX86_NET60=%ERRORLEVEL%
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=x86 -p:TargetPlatform=net8.0-windows -p:PerformAcceptanceTest=Runtime
+dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=x86 -p:TargetFramework=net8.0-windows -p:PerformAcceptanceTest=Runtime
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x86 -p:TargetPlatform=net8.0-windows -p:PerformAcceptanceTest=Runtime -bl:%~dp0\net80x86.binlog
+dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x86 -p:TargetFramework=net8.0-windows -p:PerformAcceptanceTest=Runtime -bl:%logs%\net80x86.binlog
 SET ERRUNTIMEX86_NET80=%ERRORLEVEL%
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x86 -p:TargetPlatform=net8.0-windows -p:PerformAcceptanceTest=Runtime -p:DsComRegisterTypeLibrariesAfterBuild=true -bl:%~dp0\net80x86reg.binlog
+dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x86 -p:TargetFramework=net8.0-windows -p:PerformAcceptanceTest=Runtime -p:DsComRegisterTypeLibrariesAfterBuild=true -bl:%logs%\net80x86reg.binlog
 SET ERRUNTIMEX86_NET80_REG=%ERRORLEVEL%
 
 dotnet build-server shutdown
@@ -119,6 +122,11 @@ POPD
 SetLocal EnableDelayedExpansion
 
 SET EXITCODE=0
+
+IF NOT "%ERPACK%" == "0" (
+  SET EXITCODE=1
+  ECHO "::warning:: dotnet pack failed."
+)
 
 IF NOT "%ERRUNTIMEX64_NET48%" == "0" (
   SET EXITCODE=1
@@ -180,22 +188,22 @@ IF NOT EXIST %~dp0\..\comtestdotnet\bin\x86\Release\net48\comtestdotnet.tlb (
   ECHO "::warning::Could not find exported TLB file for .NET 4.8 (x86)"
 )
 
-IF NOT EXIST %~dp0\..\comtestdotnet\bin\x64\Release\net6.0\comtestdotnet.tlb (
+IF NOT EXIST %~dp0\..\comtestdotnet\bin\x64\Release\net6.0-windows\comtestdotnet.tlb (
   SET EXITCODE=1
   ECHO "::warning::Could not find exported TLB file for .NET 6 (x64)"
 )
 
-IF NOT EXIST %~dp0\..\comtestdotnet\bin\x86\Release\net6.0\comtestdotnet.tlb (
+IF NOT EXIST %~dp0\..\comtestdotnet\bin\x86\Release\net6.0-windows\comtestdotnet.tlb (
   ::SET EXITCODE=1
   ECHO "::warning::Could not find exported TLB file for .NET 6 (x86)"
 )
 
-IF NOT EXIST %~dp0\..\comtestdotnet\bin\x64\Release\net8.0\comtestdotnet.tlb (
+IF NOT EXIST %~dp0\..\comtestdotnet\bin\x64\Release\net8.0-windows\comtestdotnet.tlb (
   SET EXITCODE=1
   ECHO "::warning::Could not find exported TLB file for .NET 8 (x64)"
 )
 
-IF NOT EXIST %~dp0\..\comtestdotnet\bin\x86\Release\net8.0\comtestdotnet.tlb (
+IF NOT EXIST %~dp0\..\comtestdotnet\bin\x86\Release\net8.0-windows\comtestdotnet.tlb (
   ::SET EXITCODE=1
   ECHO "::warning::Could not find exported TLB file for .NET 8 (x86)"
 )

@@ -56,3 +56,11 @@ jobs:
         run: .\msbuild-acceptance-test.cmd
         working-directory: .\examples\${{ matrix.test_suite.path }}\scripts
         continue-on-error: false
+        id: test
+
+      - name: Upload artifact
+        if: ${{failure() && steps.test.conclusion == 'failure'}}
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs
+          path: .\examples\${{ matrix.test_suite.path }}\logs
