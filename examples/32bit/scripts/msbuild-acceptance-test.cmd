@@ -1,12 +1,15 @@
 @ECHO off
 
 SET root=%~dp0\..\..\..\
+SET logs=%~dp0\..\logs
+IF NOT EXIST %logs% MKDIR %logs%
 
 PUSHD %root%
 
 dotnet build-server shutdown
 
-dotnet pack src\dscom.build\dscom.build.csproj -p:Configuration=Release
+dotnet pack src\dscom.build\dscom.build.csproj -p:Configuration=Release -bl:%logs%\pack.binlog
+SET ERPACK=%ERRORLEVEL%
 
 IF NOT EXIST %root%\_packages MKDIR _packages
 
@@ -35,7 +38,7 @@ dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net48 -p:PerformAcceptanceTest=Runtime -bl:%~dp0\net48x64.binlog
+dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net48 -p:PerformAcceptanceTest=Runtime -bl:%logs%\net48x64.binlog
 
 SET ERRUNTIMEX64_NET48=%ERRORLEVEL%
 
@@ -45,7 +48,7 @@ dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net6.0-windows -p:PerformAcceptanceTest=Runtime -bl:%~dp0\net60x64.binlog
+dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net6.0-windows -p:PerformAcceptanceTest=Runtime -bl:%logs%\net60x64.binlog
 
 SET ERRUNTIMEX64_NET60=%ERRORLEVEL%
 
@@ -55,7 +58,7 @@ dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net8.0-windows -p:PerformAcceptanceTest=Runtime -bl:%~dp0\net80x64.binlog
+dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net8.0-windows -p:PerformAcceptanceTest=Runtime -bl:%logs%\net80x64.binlog
 
 SET ERRUNTIMEX64_NET80=%ERRORLEVEL%
 
@@ -65,7 +68,7 @@ dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x86 -p:TargetPlatform=net48 -p:PerformAcceptanceTest=Runtime -bl:%~dp0\net48x86.binlog
+dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x86 -p:TargetPlatform=net48 -p:PerformAcceptanceTest=Runtime -bl:%logs%\net48x86.binlog
 SET ERRUNTIMEX86_NET48=%ERRORLEVEL%
 
 dotnet build-server shutdown
@@ -74,7 +77,7 @@ dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x86 -p:TargetPlatform=net6.0-windows -p:PerformAcceptanceTest=Runtime -bl:%~dp0\net60x86.binlog
+dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x86 -p:TargetPlatform=net6.0-windows -p:PerformAcceptanceTest=Runtime -bl:%logs%\net60x86.binlog
 SET ERRUNTIMEX86_NET60=%ERRORLEVEL%
 
 dotnet build-server shutdown
@@ -83,7 +86,7 @@ dotnet msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=
 
 dotnet build-server shutdown
 
-dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x86 -p:TargetPlatform=net8.0-windows -p:PerformAcceptanceTest=Runtime -bl:%~dp0\net80x86.binlog
+dotnet msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x86 -p:TargetPlatform=net8.0-windows -p:PerformAcceptanceTest=Runtime -bl:%logs%\net80x86.binlog
 SET ERRUNTIMEX86_NET80=%ERRORLEVEL%
 
 dotnet build-server shutdown
@@ -95,6 +98,11 @@ POPD
 SetLocal EnableDelayedExpansion
 
 SET EXITCODE=0
+
+IF NOT "%ERPACK%" == "0" (
+  SET EXITCODE=1
+  ECHO "::warning:: dotnet pack failed."
+)
 
 IF NOT "%ERRUNTIMEX64_NET48%" == "0" (
   SET EXITCODE=1
