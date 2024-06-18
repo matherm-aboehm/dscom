@@ -22,16 +22,34 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          global-json-file: global.json
+      - name: Set x86 install dir
+        id: x86installdir
+        run: |
+          echo "DOTNET_INSTALL_DIR=${env:ProgramFiles(x86)}\dotnet" >> $env:GITHUB_OUTPUT
       - name: Setup .NET (x86)
-        uses: actions/setup-dotnet@v5
+        uses: matherm-aboehm/setup-dotnet@verbose-with-pr538
         with:
+          dotnet-version: |
+            6.0
+            8.0
+            10.0
           global-json-file: global.json
+          #architecture: x86
+          #HACK: param architecture currently not usable in combination with DOTNET_INSTALL_DIR env var
         env:
           PROCESSOR_ARCHITECTURE: x86
+          DOTNET_INSTALL_DIR: "${{ steps.x86installdir.outputs.DOTNET_INSTALL_DIR }}"
+      - name: Set x86 root dir
+        run: |
+          echo "DOTNET_ROOT(x86)=${env:DOTNET_ROOT}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Setup .NET
+        uses: matherm-aboehm/setup-dotnet@verbose-with-pr538
+        with:
+          dotnet-version: |
+            6.0
+            8.0
+            10.0
+          global-json-file: global.json
 
       - name: Restore dependencies
         run: dotnet restore
@@ -40,6 +58,7 @@ jobs:
         run: dotnet build -c Release
 
       - uses: ilammy/msvc-dev-cmd@v1
+        if: ${{ matrix.test_suite.path == 'cppcli' }}
 
       - name: Run ${{ matrix.test_suite.Name }} Acceptance test
         run: .\msbuild-acceptance-test.cmd
