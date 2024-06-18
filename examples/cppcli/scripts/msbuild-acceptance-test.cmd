@@ -3,11 +3,14 @@
 REM Run this script from VsDevCmd
 
 SET root=%~dp0\..\..\..\
+SET logs=%~dp0\..\logs
+IF NOT EXIST %logs% MKDIR %logs%
 
 PUSHD %root%
 dotnet build-server shutdown
 
-dotnet pack src\dscom.build\dscom.build.csproj -p:Configuration=Release
+dotnet pack src\dscom.build\dscom.build.csproj -p:Configuration=Release -bl:%logs%\pack.binlog
+SET ERPACK=%ERRORLEVEL%
 
 IF NOT EXIST %root%\_packages MKDIR _packages
 
@@ -43,10 +46,10 @@ msbuild -nodeReuse:False -t:Restore -p:Configuration=Release -p:Platform=x64 -p:
 
 dotnet build-server shutdown
 
-msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net8.0-windows -p:PerformAcceptanceTest=Runtime -bl:%~dp0\net80x64.binlog
+msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net8.0-windows -p:PerformAcceptanceTest=Runtime -bl:%logs%\net80x64.binlog
 SET ERRUNTIMEX64_NET80=%ERRORLEVEL%
 
-msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net8.0-windows -p:PerformAcceptanceTest=Runtime -p:DsComRegisterTypeLibrariesAfterBuild=true -bl:%~dp0\net80x64_reg.binlog
+msbuild -nodeReuse:False -t:Build -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net8.0-windows -p:PerformAcceptanceTest=Runtime -p:DsComRegisterTypeLibrariesAfterBuild=true -bl:%logs%\net80x64_reg.binlog
 SET ERRUNTIMEX64_NET80_REG=%ERRORLEVEL%
 
 msbuild -nodeReuse:False -t:Clean -p:Configuration=Release -p:Platform=x64 -p:TargetPlatform=net8.0-windows -p:PerformAcceptanceTest=Runtime ..\CppLibrary\CppLibrary.vcxproj
@@ -60,6 +63,11 @@ POPD
 SetLocal EnableDelayedExpansion
 
 SET EXITCODE=0
+
+IF NOT "%ERPACK%" == "0" (
+  SET EXITCODE=1
+  ECHO "::warning:: dotnet pack failed."
+)
 
 IF NOT "%ERRUNTIMEX64_NET80%" == "0" (
   SET EXITCODE=1
