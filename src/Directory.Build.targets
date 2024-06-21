@@ -1,0 +1,50 @@
+<Project>
+  <Target Name="_GetProjectAssetsFilePath" Returns="$(ProjectAssetsFile)">
+    <Message Importance="Normal" Text="Returning path to project assets file: $(ProjectAssetsFile)" />
+  </Target>
+  
+  <!--
+  Package assets lock file is cached in memory, so Restore target can not be used in the middle of a build.
+  To work around this restriction this custom task is required to clear the cache.
+  See https://github.com/dotnet/sdk/issues/30167 and
+  https://github.com/dotnet/sdk/blob/main/src/Tasks/Microsoft.NET.Build.Tasks/LockFileCache.cs#L40
+  -->
+  <UsingTask TaskName="ClearLockFileCache" TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <ProjectAssetsFiles ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <!--Reference Include="" /-->
+      <Using Namespace="System" />
+      <Using Namespace="Microsoft.Build.Framework" />
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+foreach(var lockFile in ProjectAssetsFiles)
+{
+  var lockFilePath = lockFile.ItemSpec;
+  var key = $"LockFileCache:{lockFilePath}";
+  Log.LogMessage(MessageImportance.Normal, $"Clear build cache for key \"{key}\"");
+  var cacheobj = BuildEngine4.UnregisterTaskObject(key, RegisteredTaskObjectLifetime.Build);
+  (cacheobj as IDisposable)?.Dispose();
+  if (cacheobj == null)
+  {
+    Log.LogMessage(MessageImportance.Normal, $"No build cache item found for key \"{key}\"");
+  }
+}
+]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
+
+  <Target Name="ForceLoadingOfPackageAssetsFile"
+          BeforeTargets="RunResolvePackageDependencies;ResolvePackageAssets;ComputeResolvedFilesToPublishList"
+          Condition="'$(DisableLockFileCache)' == 'true'">
+    <ItemGroup>
+      <_ProjectAssetsFilePaths Include="$(ProjectAssetsFile)" />
+    </ItemGroup>
+    <ClearLockFileCache ProjectAssetsFiles="@(_ProjectAssetsFilePaths)" />
+  </Target>
+
+</Project>
