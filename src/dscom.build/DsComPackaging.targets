@@ -39,8 +39,20 @@
     but before NuGet generates a nuspec. See https://github.com/NuGet/Home/issues/4704.
     -->
     <ItemGroup>
-      <_PackageFiles Include="$(MsBuildThisFileDirectory)\bin\$(Configuration)\*\dSPACE.Runtime.InteropServices.dll">
-        <PackagePath>build\_dscom%(RecursiveDir)</PackagePath>
+      <!--
+      Needs a temporary for %(RecursiveDir) metadata to work around error MSB4120.
+      See https://aka.ms/msbuild/metadata-self-ref
+      Newer NuGet tools automatically appends %(RecursiveDir) to the PackagePath,
+      when the final path for the package file is constructed, so %(RecursiveDir)
+      should not be included in the %(PackagePath) metadata in the first place.
+      The %(RecursiveDir) metadata will be saved to %(NuGetRecursiveDir) metadata,
+      to avoid possible bugs when this target will be used by outer MSBuild calls.
+      See https://github.com/Microsoft/msbuild/issues/3121
+      -->
+      <_PackageFileTemp Include="$(MsBuildThisFileDirectory)\bin\$(Configuration)\*\dSPACE.Runtime.InteropServices.dll" />
+      <_PackageFiles Include="@(_PackageFileTemp)">
+        <PackagePath>build\_dscom</PackagePath>
+        <NuGetRecursiveDir>%(RecursiveDir)</NuGetRecursiveDir>
         <Visible>false</Visible>
         <BuildAction>Content</BuildAction>
       </_PackageFiles>
@@ -50,7 +62,7 @@
   <!--
     Bundle Tool. Required for NetStandard 2.0 and x86 Builds
   -->
-  <Target Name="DsComBuildPackTool" DependsOnTargets="DsComBuildPublishTool">
+  <Target Name="DsComBuildPackTool" DependsOnTargets="DsComPackTargetCompleted;DsComBuildPublishTool">
     <ItemGroup>
       <_PackageFiles Include="$(DsComClientToolsTargetDir)\x64\dscom.exe">
         <PackagePath>tools\x64\</PackagePath>
@@ -72,77 +84,79 @@
     </ItemGroup>
   </Target>
 
+  <!--
+  Artificial dependency target
+  Required to resolve bad execution ordering when Pack and Restore targets are running in parallel
+  for the same project, but from different callers with different restore properties.
+  -->
+  <Target Name="DsComPackTargetCompleted" Condition="'$(BuildingSolutionFile)'=='true'">
+    <Message Importance="Normal" Text="Wait for DsCOM lib packing to finish" />
+    <ItemGroup>
+      <_DependsOnPackingFinishedProjects Include="@(ProjectReference)" />
+      <_DependsOnPackingFinishedProjects Include="$(DsComClientDir)dscom.client.csproj" />
+    </ItemGroup>
+    <MSBuild
+      BuildInParallel="true"
+      ContinueOnError="false"
+      Targets="Pack"
+      Projects="@(_DependsOnPackingFinishedProjects)" />
+  </Target>
+
   <!-- Meta Targets -->
   <Target Name="DsComBuildPublishTool" DependsOnTargets="DsComBuildPublishToolX64;DsComBuildPublishToolX86" />
 
-  <Target Name="DsComBuildPublishToolX64" DependsOnTargets="DsComBuildPublishToolRestoreX64;DsComBuildPublishToolBuildX64;DsComBuildPublishToolPublishX64" />
-  <Target Name="DsComBuildPublishToolX86" DependsOnTargets="DsComBuildPublishToolRestoreX86;DsComBuildPublishToolBuildX86;DsComBuildPublishToolPublishX86" />
-  
+  <Target Name="DsComBuildPublishToolX64" DependsOnTargets="DsComBuildPublishToolRestore;DsComBuildPublishToolPublishX64" />
+  <Target Name="DsComBuildPublishToolX86" DependsOnTargets="DsComBuildPublishToolRestore;DsComBuildPublishToolPublishX86" />
+
   <!-- Build and restore tool -->
 
-  <Target Name="DsComBuildPublishToolRestoreX64">
-    <Message Importance="Normal" Text="Restoring DsCOM Client tool in x64 for packing" />
-    <MSBuild 
-      BuildInParallel="true" 
+  <Target Name="DsComBuildPublishToolRestore">
+    <Message Importance="Normal" Text="Restoring DsCOM Client tool in x64/x86 for packing" />
+    <MSBuild
+      BuildInParallel="true"
       ContinueOnError="false"
       StopOnFirstFailure="true"
-      Targets="Restore"
-      Properties="RuntimeIdentifier=win-x64;Platform=x64;$(DsComBuildParameters)"
+      Targets="_GetAllRestoreProjectPathItems;Restore"
+      Properties="$(DsComBuildParameters)"
+      Projects="$(DsComClientDir)dscom.client.csproj">
+      <!-- Return all projects which are restored by this call -->
+      <Output TaskParameter="TargetOutputs"
+              ItemName="_RestoreProjectPathItems" />
+    </MSBuild>
+    <!-- Get paths to assets file from specified projects -->
+    <MSBuild
+      BuildInParallel="true"
+      ContinueOnError="false"
+      Targets="_GetProjectAssetsFilePath"
+      Properties="$(DsComBuildParameters)"
+      Projects="@(_RestoreProjectPathItems)">
+
+      <Output TaskParameter="TargetOutputs"
+              ItemName="_ProjectAssetsFilePaths" />
+    </MSBuild>
+    
+    <ClearLockFileCache ProjectAssetsFiles="@(_ProjectAssetsFilePaths)" />
+  </Target>
+
+  <Target Name="DsComBuildPublishToolPublishX64" DependsOnTargets="DsComBuildPublishToolRestore">
+    <Message Importance="Normal" Text="Publishing DsCOM Client tool in x64 for packing" />
+    <MSBuild
+      BuildInParallel="true"
+      ContinueOnError="false"
+      StopOnFirstFailure="true"
+      Targets="Build;Publish"
+      Properties="DisableLockFileCache=true;PublishDir=$(DsComClientToolsTargetDir)\x64;RuntimeIdentifier=win-x64;Platform=x64;$(DsComBuildParameters)"
       Projects="$(DsComClientDir)dscom.client.csproj" />
   </Target>
 
-  <Target Name="DsComBuildPublishToolRestoreX86">
-    <Message Importance="Normal" Text="Restoring DsCOM Client tool in x86 for packing" />
-    <MSBuild 
-      BuildInParallel="true" 
-      ContinueOnError="false"
-      StopOnFirstFailure="true"
-      Targets="Restore"
-      Properties="RuntimeIdentifier=win-x86;Platform=x86;$(DsComBuildParameters)"
-      Projects="$(DsComClientDir)dscom.client.csproj" />
-  </Target>
-
-  <Target Name="DsComBuildPublishToolBuildX64" DependsOnTargets="DsComBuildPublishToolRestoreX64">
-    <Message Importance="Normal" Text="Building DsCOM Client tool in x64 for packing" />
-    <MSBuild 
-      BuildInParallel="true" 
-      ContinueOnError="false"
-      StopOnFirstFailure="true"
-      Targets="Build"
-      Properties="Platform=x64;$(DsComBuildParameters)"
-      Projects="$(DsComClientDir)dscom.client.csproj" />
-  </Target>
-
-  <Target Name="DsComBuildPublishToolBuildX86" DependsOnTargets="DsComBuildPublishToolRestoreX86">
-    <Message Importance="Normal" Text="Building DsCOM Client tool in x86 for packing" />
-    <MSBuild 
-      BuildInParallel="true" 
-      ContinueOnError="false"
-      StopOnFirstFailure="true"
-      Targets="Build"
-      Properties="RuntimeIdentifier=win-x86;Platform=x86;$(DsComBuildParameters)"
-      Projects="$(DsComClientDir)dscom.client.csproj" />
-  </Target>
-
-  <Target Name="DsComBuildPublishToolPublishX64" DependsOnTargets="DsComBuildPublishToolBuildX64">
-    <Message Importance="Normal" Text="Building DsCOM Client tool in x64 for packing" />
-    <MSBuild 
-      BuildInParallel="true" 
-      ContinueOnError="false"
-      StopOnFirstFailure="true"
-      Targets="Publish"
-      Properties="PublishDir=$(DsComClientToolsTargetDir)\x64;RuntimeIdentifier=win-x64;Platform=x64;$(DsComBuildParameters)"
-      Projects="$(DsComClientDir)dscom.client.csproj" />
-  </Target>
-
-  <Target Name="DsComBuildPublishToolPublishX86" DependsOnTargets="DsComBuildPublishToolBuildX86">
+  <Target Name="DsComBuildPublishToolPublishX86" DependsOnTargets="DsComBuildPublishToolRestore">
     <Message Importance="Normal" Text="Publishing DsCOM Client tool in x86 for packing" />
-    <MSBuild 
-      BuildInParallel="true" 
+    <MSBuild
+      BuildInParallel="true"
       ContinueOnError="false"
       StopOnFirstFailure="true"
-      Targets="Publish"
-      Properties="PublishDir=$(DsComClientToolsTargetDir)\x86;RuntimeIdentifier=win-x86;Platform=x86;$(DsComBuildParameters)"
+      Targets="Build;Publish"
+      Properties="DisableLockFileCache=true;PublishDir=$(DsComClientToolsTargetDir)\x86;RuntimeIdentifier=win-x86;Platform=x86;$(DsComBuildParameters)"
       Projects="$(DsComClientDir)dscom.client.csproj" />
   </Target>
 </Project>
