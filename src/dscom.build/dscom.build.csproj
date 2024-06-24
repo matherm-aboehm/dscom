@@ -4,7 +4,10 @@
     <DsComBuildTargetFrameWork>net6.0</DsComBuildTargetFrameWork>
     <AssemblyName>dSPACE.Runtime.InteropServices.BuildTasks</AssemblyName>
     <TargetFrameworks>net8.0;$(DsComBuildTargetFrameWork);net48</TargetFrameworks>
+    <TargetPlatformIdentifier>Windows</TargetPlatformIdentifier>
     <PlatformTarget>x64</PlatformTarget>
+    <UseWpf>true</UseWpf>
+    <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>dSPACE.Runtime.InteropServices.BuildTasks</RootNamespace>
     <MinVerVerbosity Condition="'$(Configuration)' == 'Debug'">normal</MinVerVerbosity>
     <MinVerTagPrefix>v</MinVerTagPrefix>
@@ -67,6 +70,9 @@
     <None Include="netstandard2.0\*.targets" Pack="true" PackagePath="build\netstandard2.0" />
     <None Remove="DsComPackaging.targets" />
     <None Include="DsComPackaging.targets" Pack="false" />
+    <!-- Add back implicit Usings which were removed when setting UseWpf to true -->
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" Condition="'$(TargetFrameworkIdentifier)' != '.NETFramework'"/>
   </ItemGroup>
 
   <ItemGroup>

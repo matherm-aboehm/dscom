@@ -4,9 +4,12 @@
     <AssemblyName>dscom</AssemblyName>
     <OutputType>Exe</OutputType>
     <TargetFrameworks>net8.0;net6.0</TargetFrameworks>
+    <TargetPlatformIdentifier>Windows</TargetPlatformIdentifier>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <Platforms>AnyCPU;x86</Platforms>
     <RuntimeIdentifiers Condition="'$(PackForBuildTaskTools)' == 'true'">win-x64;win-x86</RuntimeIdentifiers>
+    <UseWpf>true</UseWpf>
+    <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>dSPACE.Runtime.InteropServices</RootNamespace>
     <MinVerVerbosity Condition="'$(Configuration)' == 'Debug'">normal</MinVerVerbosity>
     <MinVerTagPrefix>v</MinVerTagPrefix>
@@ -49,6 +52,9 @@
     <None Include="..\dscom\packageIcon.png" Pack="true" PackagePath="\" />
     <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <!-- Add back implicit Usings which were removed when setting UseWpf to true -->
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" Condition="'$(TargetFrameworkIdentifier)' != '.NETFramework'"/>
   </ItemGroup>
 
   <ItemGroup>
