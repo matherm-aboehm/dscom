@@ -14,7 +14,13 @@ internal static partial class Extensions
     static Extensions()
     {
 #if NETCOREAPP
-        _mappingForwardedTypesFrom = (from a in AppDomain.CurrentDomain.GetAssemblies()
+        var loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies().AsEnumerable();
+        if (!loadedAssemblies.Any(a => a.GetName().Name == "mscorlib"))
+        {
+            // explicitly load mscorlib for compatibility with .NET Framework
+            loadedAssemblies = loadedAssemblies.Prepend(AppDomain.CurrentDomain.Load("mscorlib"));
+        }
+        _mappingForwardedTypesFrom = (from a in loadedAssemblies
                                       from t in a.GetForwardedTypes()
                                       select (t, a))
                                       .ToLookup(ta => ta.t.FullName!, ta => ta.a);

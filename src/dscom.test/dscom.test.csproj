@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFrameworks>net8.0;net6.0;net48</TargetFrameworks>
+    <TargetPlatformIdentifier>Windows</TargetPlatformIdentifier>
     <PlatformTarget>x64</PlatformTarget>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
