@@ -61,4 +61,18 @@
     <ProjectReference Include="..\dscom\dscom.csproj" />
   </ItemGroup>
 
+  <!-- Workaround for error NETSDK1146, remove when following issue is resvoled:
+       https://github.com/dotnet/sdk/issues/12055 -->
+  <Target Name="HackBeforePackToolValidation" BeforeTargets="_PackToolValidation">
+    <PropertyGroup>
+      <TargetPlatformIdentifier></TargetPlatformIdentifier>
+      <TargetPlatformMoniker></TargetPlatformMoniker>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="HackAfterPackToolValidation" AfterTargets="_PackToolValidation" BeforeTargets="PackTool">
+    <PropertyGroup>
+      <TargetPlatformIdentifier>Windows</TargetPlatformIdentifier>
+    </PropertyGroup>
+  </Target>
 </Project>
