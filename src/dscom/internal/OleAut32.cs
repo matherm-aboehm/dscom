@@ -31,5 +31,8 @@ public class OleAut32
 
     [DllImport(Constants.OleAut32, SetLastError = false, ExactSpelling = true)]
     public static extern HRESULT LoadTypeLibEx([MarshalAs(UnmanagedType.LPWStr)] string szFile, REGKIND regkind, out ITypeLib pptlib);
+
+    [DllImport(Constants.OleAut32, SetLastError = false, ExactSpelling = true)]
+    public static extern HRESULT QueryPathOfRegTypeLib(in Guid guid, ushort wMaj, ushort wMin, int lcid, [MarshalAs(UnmanagedType.BStr)] out string lpbstrPathName);
 }
 
