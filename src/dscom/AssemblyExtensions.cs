@@ -15,6 +15,7 @@
 using System.ComponentModel;
 using System.Reflection;
 using System.Reflection.Metadata;
+using System.Runtime.Versioning;
 
 #if NETFRAMEWORK || NETSTANDARD
 using System.Buffers;
@@ -57,6 +58,21 @@ public static class AssemblyExtensions
     public static TypeLibIdentifier GetLibIdentifier(this Assembly assembly)
     {
         return assembly.GetLibIdentifier(Guid.Empty);
+    }
+
+    /// <summary>
+    /// Returns the <see cref="FrameworkName"/> from a assembly if it was specified.
+    /// </summary>
+    /// <param name="assembly">An assembly for that a <see cref="FrameworkName"/> is retrieved.</param>
+    /// <returns><see cref="FrameworkName"/> if it was specified for the assembly.</returns>
+    public static FrameworkName? GetFrameworkName(this Assembly assembly)
+    {
+        var targetFrameworkAttribute = assembly.GetCustomAttribute<TargetFrameworkAttribute>();
+        if (targetFrameworkAttribute != null)
+        {
+            return new FrameworkName(targetFrameworkAttribute.FrameworkName);
+        }
+        return null;
     }
 
     internal static IEnumerable<Type> GetLoadableTypes(this Assembly assembly)

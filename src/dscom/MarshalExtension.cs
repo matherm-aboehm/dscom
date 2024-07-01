@@ -21,7 +21,6 @@ using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
-using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -33,6 +32,7 @@ namespace dSPACE.Runtime.InteropServices;
 internal static class MarshalExtension
 {
     [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
+    [SuppressMessage("Microsoft.Style", "IDE0052", Justification = "For future use")]
     private static readonly Guid COMPLUS_RUNTIME_GUID_FULLFRAMEWORK = new("c9cbf969-05da-d111-9408-0000f8083460");
 
     [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
@@ -298,14 +298,18 @@ internal static class MarshalExtension
         return arr;
     }
 
+    [SuppressMessage("Microsoft.Style", "IDE0060", Justification = "For future use")]
     private static Guid GetGuidNamespaceFromAssembly(Assembly assembly)
     {
         var nsGuid = COMPLUS_RUNTIME_GUID_CORE;
-        var targetFrameworkAttribute = assembly.GetCustomAttribute<TargetFrameworkAttribute>();
-        if (targetFrameworkAttribute != null && targetFrameworkAttribute.FrameworkName.StartsWith(".NETFramework", StringComparison.Ordinal))
+        //Tested: On .NET Framework 4.8.1 it is the same as COMPLUS_RUNTIME_GUID_CORE,
+        //as it is with .NET Core 8.0, so remove special casing for .NET Framework.
+        //TODO: Find out when COMPLUS_RUNTIME_GUID_FULLFRAMEWORK actually was used.
+        /*var targetFramework = assembly.GetFrameworkName();
+        if (targetFramework != null && targetFramework.Identifier.Equals(".NETFramework", StringComparison.Ordinal))
         {
             nsGuid = COMPLUS_RUNTIME_GUID_FULLFRAMEWORK;
-        }
+        }*/
         return nsGuid;
     }
 
