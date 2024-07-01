@@ -126,8 +126,13 @@ internal sealed class TypeInfoResolver : ITypeLibCache
                     {
                         if (notifySink.ResolveRef(assembly) is ITypeLib refTypeLib)
                         {
-                            AddTypeLib(refTypeLib);
-                            typeLib = refTypeLib;
+                            if (AddTypeLib(typeLib = refTypeLib))
+                            {
+                                //TODO: In this case, type library was not created by notifySink using local TypeLibConverter,
+                                // but instead was loaded from existing file, so cache in MarshalExtension needs to be updated
+                                // for GetClassInterfaceGuidForType based on type infos in this type lib.
+
+                            }
                         }
                     }
                 }
@@ -203,11 +208,81 @@ internal sealed class TypeInfoResolver : ITypeLibCache
         return value;
     }
 
+    public ITypeLib? LoadTypeLibFromIdentifier(TypeLibIdentifier identifier, bool throwOnError = true)
+    {
+        HRESULT hr;
+        string typeLibPath = null!;
+        try
+        {
+            hr = OleAut32.QueryPathOfRegTypeLib(identifier.LibID, identifier.MajorVersion, identifier.MinorVersion,
+                Constants.LCID_NEUTRAL, out typeLibPath);
+        }
+        catch (Exception ex) when (!throwOnError)
+        {
+            hr = (HRESULT)ex.HResult;
+        }
+
+        if (hr.Succeeded)
+        {
+            try
+            {
+                return LoadTypeLibFromPath(typeLibPath);
+            }
+            catch (Exception ex) when (!throwOnError || WriterContext.Options.Create64BitTlb.HasValue)
+            {
+                hr = (HRESULT)ex.HResult;
+            }
+
+            // Fallback for downlevel platform, if target platform was specified
+            if (WriterContext.Options.Create64BitTlb.HasValue)
+            {
+                hr = OleAut32.LoadRegTypeLib(identifier.LibID, identifier.MajorVersion, identifier.MinorVersion,
+                    Constants.LCID_NEUTRAL, out var typeLib);
+                if (hr.Succeeded)
+                {
+                    return typeLib;
+                }
+            }
+        }
+
+        if (throwOnError)
+        {
+            hr.ThrowIfFailed($"Failed to load type library {identifier.LibID}.");
+        }
+
+        return null;
+    }
+
+    public ITypeLib? LoadTypeLibFromPath(string typeLibPath, bool throwOnError = true)
+    {
+        var regkind = REGKIND.NONE;
+        regkind |= WriterContext.Options.Create64BitTlb switch
+        {
+            true => REGKIND.REGKIND_LOAD_TLB_AS_64BIT,
+            false => REGKIND.REGKIND_LOAD_TLB_AS_32BIT,
+            _ => 0
+        };
+        try
+        {
+            var hr = OleAut32.LoadTypeLibEx(typeLibPath, regkind, out var typeLib);
+            if (throwOnError)
+            {
+                hr.ThrowIfFailed($"Failed to load type library {typeLibPath}.");
+            }
+            else if (hr.Failed)
+            {
+                return null;
+            }
+            return typeLib;
+        }
+        catch when (!throwOnError)
+        {
+            return null;
+        }
+    }
+
     public void AddTypeLib(string name, int lcid, Guid registeredTypeLib, ushort majorVersion, ushort minorVersion)
     {
-        OleAut32.LoadRegTypeLib(registeredTypeLib, majorVersion, minorVersion, Constants.LCID_NEUTRAL, out var typeLib)
-            .ThrowIfFailed($"Failed to load type library {registeredTypeLib}.");
-
         var identifier = new TypeLibIdentifier
         {
             Name = name,
@@ -216,6 +291,8 @@ internal sealed class TypeInfoResolver : ITypeLibCache
             MajorVersion = majorVersion,
             MinorVersion = minorVersion
         };
+
+        var typeLib = LoadTypeLibFromIdentifier(identifier)!;
 
         _typeLibs.Add(identifier, typeLib);
         UpdateTypeLibCache(typeLib);
@@ -285,7 +362,7 @@ internal sealed class TypeInfoResolver : ITypeLibCache
     [ExcludeFromCodeCoverage] // UnitTest with dependent type libraries is not supported
     public bool AddTypeLib(string typeLibPath)
     {
-        OleAut32.LoadTypeLibEx(typeLibPath, REGKIND.NONE, out var typeLib).ThrowIfFailed($"Failed to load type library {typeLibPath}.");
+        var typeLib = LoadTypeLibFromPath(typeLibPath)!;
         return AddTypeLib(typeLib);
     }
 

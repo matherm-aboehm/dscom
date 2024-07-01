@@ -12,6 +12,8 @@ public static class Guids
 {
     public const string TLBID_Ole = "00020430-0000-0000-C000-000000000046";
 
+    public const string LIBID_ComPlusRuntime = "BED7F4EA-1A96-11d2-8F08-00A0C9A6186D";
+
     public const string CLSID_RecordInfo = "0000002F-0000-0000-C000-000000000046";
 
     public const string IID_IRecordInfo = "0000002F-0000-0000-C000-000000000046";

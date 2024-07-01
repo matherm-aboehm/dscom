@@ -27,4 +27,22 @@ public interface ITypeLibCache
     /// </summary>
     /// <param name="identifier">An assembly identifier.</param>
     ITypeLib? GetTypeLibFromIdentifier(TypeLibIdentifier identifier);
+
+    /// <summary>
+    /// Loads a type library with information from registry.
+    /// </summary>
+    /// <param name="identifier">Identification data for a registered type libraray.</param>
+    /// <param name="throwOnError">Specifies wether it should throw on any error
+    /// or just return <c>null</c>.</param>
+    /// <returns>ITypeLib</returns>
+    ITypeLib? LoadTypeLibFromIdentifier(TypeLibIdentifier identifier, bool throwOnError = true);
+
+    /// <summary>
+    /// Loads a type library from path.
+    /// </summary>
+    /// <param name="typeLibPath">Path to the type library.</param>
+    /// <param name="throwOnError">Specifies wether it should throw on any error
+    /// or just return <c>null</c>.</param>
+    /// <returns>ITypeLib</returns>
+    ITypeLib? LoadTypeLibFromPath(string typeLibPath, bool throwOnError = true);
 }
