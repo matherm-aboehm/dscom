@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using Microsoft.Win32;
 
 namespace dSPACE.Runtime.InteropServices;
 
@@ -21,6 +23,9 @@ namespace dSPACE.Runtime.InteropServices;
 /// </summary>
 public class TypeLibExporterNotifySink : ITypeLibExporterNotifySink, ITypeLibExporterNameProvider, ITypeLibCacheProvider
 {
+    [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
+    private static readonly Guid LIBID_ComPlusRuntime = new(Guids.LIBID_ComPlusRuntime);
+
     private readonly INameResolver _nameResolver;
 
     public TypeLibExporterNotifySink(TypeLibConverterOptions options, INameResolver nameResolver)
@@ -65,6 +70,50 @@ public class TypeLibExporterNotifySink : ITypeLibExporterNotifySink, ITypeLibExp
         }
     }
 
+    private string GetFrameworkDirectory(Version? frameworkVersion, Version imageRuntimeVersion)
+    {
+        // use this from a project that references MSBuild assemblies
+        /*using Microsoft.Build.Utilities;
+        ToolLocationHelper.GetPathToDotNetFramework(
+                frameworkVersion->TargetDotNetFrameworkVersion.VersionX);*/
+        // read from registry when above isn't possible
+        // maybe use a different approach using this guide:
+        //https://learn.microsoft.com/en-us/dotnet/framework/migration-guide/how-to-determine-which-versions-are-installed#detect-net-framework-45-and-later-versions
+        var frameworkRegPath = @"Software\Microsoft\.NetFramework";
+        using var registryBase = Options.Create64BitTlb switch
+        {
+            true => RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64),
+            false => RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32),
+            _ => Registry.LocalMachine
+        };
+        using var netFramework = registryBase.OpenSubKey(frameworkRegPath, false);
+
+        var installRoot = (netFramework?.GetValue("InstallRoot")?.ToString())
+            ?? throw new InvalidOperationException("Can't find the install root of .NET Framework.");
+
+        // use Assembly.ImageRuntimeVersion as fallback, if frameworkVersion isn't available,
+        // but it isn't accurate in all cases, e.g. .NET Core assemblies give v4 like .NET Framework,
+        // which is currently no problem, as this method should not be called for .NET Core assemblies
+        var clrVersion = imageRuntimeVersion;
+        // try to use frameworkVersion if specified
+        if (frameworkVersion != null)
+        {
+            var clrMajorVersion = frameworkVersion.Major == 3 ? 2 : frameworkVersion.Major;
+            if (clrMajorVersion is not 2 and not 4)
+            {
+                throw new NotSupportedException("Only CLR versions 2 and 4 are supported.");
+            }
+            var allVersions = from kn in netFramework.GetSubKeyNames()
+                              where kn.StartsWith('v')
+                              select Version.TryParse(kn.AsSpan(1), out var ver) ? ver : null;
+            clrVersion = allVersions.FirstOrDefault(ver => ver != null && ver.Major == clrMajorVersion)
+               ?? throw new InvalidOperationException($"Can't find version directory portion for target Framework version {frameworkVersion}.");
+        }
+        var versionDir = $"v{clrVersion.Major}.{clrVersion.Minor}.{clrVersion.Build}";
+
+        return Path.Combine(installRoot, versionDir);
+    }
+
     /// <summary>Asks the user to resolve a reference to another assembly.</summary>
     /// <param name="assembly">The assembly to resolve.</param>
     /// <returns>The type library for <paramref name="assembly" />.</returns>
@@ -75,6 +124,51 @@ public class TypeLibExporterNotifySink : ITypeLibExporterNotifySink, ITypeLibExp
         {
             var identifier = assembly.GetLibIdentifier();
             var typelib = TypeLibCache.GetTypeLibFromIdentifier(identifier);
+            if (typelib != null)
+            {
+                return typelib;
+            }
+            // Hard code loading of mscorlib.tlb from .NET Framework as it is in the CLR
+            if (identifier.LibID == LIBID_ComPlusRuntime)
+            {
+                var targetFramework = assembly.GetFrameworkName();
+                if (targetFramework == null || targetFramework.Identifier.Equals(".NETFramework", StringComparison.Ordinal))
+                {
+                    // can't use RuntimeEnvironment.GetRuntimeDirectory() here,
+                    // as long as this tool exe is not compiled to target .NET Framework
+                    var typelibPath = Path.Combine(
+                        GetFrameworkDirectory(targetFramework?.Version,
+                            new Version(assembly.ImageRuntimeVersion.TrimStart('v'))),
+                        "mscorlib.tlb");
+                    typelib = TypeLibCache.LoadTypeLibFromPath(typelibPath);
+                }
+                else
+                {
+                    var message = $"The referenced library {identifier.Name} is using the same library id as mscorlib from full .NET Framework, but it isn't the same assembly.";
+                    ReportEvent(ExporterEventKind.NOTIF_CONVERTWARNING, 0, message);
+                }
+            }
+            else
+            {
+                typelib = TypeLibCache.LoadTypeLibFromIdentifier(identifier, throwOnError: false);
+                if (typelib == null)
+                {
+                    var versions = new[]{
+                        assembly.GetName().Version,
+                        null
+                    };
+                    foreach (var ver in versions.Distinct())
+                    {
+                        identifier.MajorVersion = unchecked((ushort)(ver?.Major ?? -1)); // -1 means highest version
+                        identifier.MinorVersion = unchecked((ushort)(ver?.Minor ?? -1)); // -1 means highest version
+                        typelib = TypeLibCache.LoadTypeLibFromIdentifier(identifier, throwOnError: false);
+                        if (typelib != null)
+                        {
+                            return typelib;
+                        }
+                    }
+                }
+            }
             if (typelib != null)
             {
                 return typelib;
