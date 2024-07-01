@@ -21,7 +21,6 @@ using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
-using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -33,10 +32,14 @@ namespace dSPACE.Runtime.InteropServices;
 internal static class MarshalExtension
 {
     [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
+    [SuppressMessage("Microsoft.Style", "IDE0052", Justification = "For future use")]
     private static readonly Guid COMPLUS_RUNTIME_GUID_FULLFRAMEWORK = new("c9cbf969-05da-d111-9408-0000f8083460");
 
     [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
     private static readonly Guid COMPLUS_RUNTIME_GUID_CORE = new("69f9cbc9-da05-11d1-9408-0000f8083460");
+
+    [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
+    private static readonly Guid GUID_ManagedName = new(Guids.GUID_ManagedName);
 
     private static readonly ConcurrentDictionary<Type, Guid> _cacheTypeGuids = new();
     private static readonly ConcurrentDictionary<Type, Guid> _cacheClassIntfGuids = new();
@@ -45,6 +48,54 @@ internal static class MarshalExtension
     {
         _cacheTypeGuids.Clear();
         _cacheClassIntfGuids.Clear();
+    }
+
+    internal static void UpdateCacheFromTypeLib(ITypeLib typelib, Assembly assembly)
+    {
+        var count = typelib.GetTypeInfoCount();
+        for (var i = 0; i < count; i++)
+        {
+            typelib.GetTypeInfo(i, out var typeInfo);
+            AddTypeToCache(typeInfo, assembly);
+        }
+    }
+
+    private static void AddTypeToCache(ITypeInfo typeInfo, Assembly assembly)
+    {
+        if (typeInfo != null)
+        {
+            typeInfo.GetTypeAttr(out var ppTypAttr);
+            try
+            {
+                var attr = Marshal.PtrToStructure<TYPEATTR>(ppTypAttr);
+                if (attr.typekind is TYPEKIND.TKIND_INTERFACE or
+                    TYPEKIND.TKIND_DISPATCH && typeInfo is ITypeInfo2 ti2)
+                {
+                    var guidManagedName = GUID_ManagedName;
+                    ti2.GetCustData(ref guidManagedName, out var custAttr);
+                    if (custAttr is string managedName)
+                    {
+                        var type = assembly.GetType(managedName);
+                        if (type is not null && type.IsClass)
+                        {
+                            _cacheClassIntfGuids.AddOrUpdate(type, attr.guid, (t, g) =>
+                            {
+                                if (g != attr.guid)
+                                {
+                                    throw new InvalidOperationException(
+                                        $"A class interface GUID for {t.FullName} was already generated with {g}, but the class interface from Typelib has {attr.guid}.");
+                                }
+                                return g;
+                            });
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                typeInfo.ReleaseTypeAttr(ppTypAttr);
+            }
+        }
     }
 
     internal static void AddClassInterfaceTypeToCache(Type classType, Type defItfType)
@@ -341,14 +392,18 @@ internal static class MarshalExtension
         return arr;
     }
 
+    [SuppressMessage("Microsoft.Style", "IDE0060", Justification = "For future use")]
     private static Guid GetGuidNamespaceFromAssembly(Assembly assembly)
     {
         var nsGuid = COMPLUS_RUNTIME_GUID_CORE;
-        var targetFrameworkAttribute = assembly.GetCustomAttribute<TargetFrameworkAttribute>();
-        if (targetFrameworkAttribute != null && targetFrameworkAttribute.FrameworkName.StartsWith(".NETFramework", StringComparison.Ordinal))
+        //Tested: On .NET Framework 4.8.1 it is the same as COMPLUS_RUNTIME_GUID_CORE,
+        //as it is with .NET Core 8.0, so remove special casing for .NET Framework.
+        //TODO: Find out when COMPLUS_RUNTIME_GUID_FULLFRAMEWORK actually was used.
+        /*var targetFramework = assembly.GetFrameworkName();
+        if (targetFramework != null && targetFramework.Identifier.Equals(".NETFramework", StringComparison.Ordinal))
         {
             nsGuid = COMPLUS_RUNTIME_GUID_FULLFRAMEWORK;
-        }
+        }*/
         return nsGuid;
     }
 
