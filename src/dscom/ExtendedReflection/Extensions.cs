@@ -215,7 +215,35 @@ internal static partial class Extensions
 #endif
         var roAssemblyName = roType.Assembly.GetName();
         var runtimeAssemblies = AppDomain.CurrentDomain.GetAssemblies().Where(a => IsEqualForReflectionOnly(a.GetName(), roAssemblyName));
-        return runtimeAssemblies.Select(a => a.GetType(roType.FullName!)).FirstOrDefault();
+        if (!roType.IsGenericType && !roType.IsGenericParameter)
+        {
+            return runtimeAssemblies.Select(a => a.GetType(roType.FullName!)).FirstOrDefault();
+        }
+        else if (roType.IsGenericType)
+        {
+            var runtimeTypeDef = runtimeAssemblies.Select(
+                a => a.GetType(MarshalExtension.GetFullyQualifiedNameForClassNestedAware(roType))
+                ).FirstOrDefault();
+            if (runtimeTypeDef is null || roType.IsGenericTypeDefinition ||
+                roType.GenericTypeArguments.Length == 0)
+            {
+                return runtimeTypeDef;
+            }
+            var typeArgs = roType.GetGenericArguments().Select(t => t.ToRuntimeType()).ToArray();
+            if (typeArgs.Any(t => t is null))
+            {
+                return null;
+            }
+            return runtimeTypeDef.MakeGenericType(typeArgs!);
+        }
+        else
+        {
+            if (roType.DeclaringMethod is not null)
+            {
+                throw new NotSupportedException("Type parameters from generic methods not supported.");
+            }
+            return roType.DeclaringType!.ToRuntimeType()?.GetGenericArguments()[roType.GenericParameterPosition];
+        }
     }
 
     public static object[] GetCustomAttributes(this IList<CustomAttributeData> attrData)
