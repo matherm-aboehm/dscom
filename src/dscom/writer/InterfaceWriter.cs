@@ -123,7 +123,7 @@ internal abstract class InterfaceWriter : TypeWriter, WriterFactory.IProvidesFin
             }
             //HINT: don't replace method.Name with methodName in next code line,
             // this is intentionally, because first compare is on original name.
-            var numIdenticalNames = MethodWriters.Count(z => z.IsVisibleMethod && (z.MemberInfo.Name == method.Name || z.MethodName.StartsWith(methodName + "_", StringComparison.Ordinal)));
+            var numIdenticalNames = MethodWriters.Count(z => z.IsVisibleMethod && (z.MethodInfo.Name == method.Name || z.MethodName.StartsWith(methodName + "_", StringComparison.Ordinal)));
 
             numIdenticalNames += GetMethodNamesOfBaseTypeInfo(BaseTypeInfo).Count(z => z == methodName || z.StartsWith(methodName + "_", StringComparison.Ordinal));
 
@@ -131,7 +131,32 @@ internal abstract class InterfaceWriter : TypeWriter, WriterFactory.IProvidesFin
             MethodWriter methodWriter;
             if ((methodName.StartsWith("get_", StringComparison.Ordinal) || methodName.StartsWith("set_", StringComparison.Ordinal)) && method.IsSpecialName)
             {
-                var propertyInfo = method.DeclaringType!.GetProperties().First(p => p.GetGetMethod() == method || p.GetSetMethod() == method);
+                // Use ReflectedType instead of DeclaringType, because when method was only defined on base type,
+                // ReflectedType of all property accessors would be different to current method when retrieved from DeclaringType
+                // and so Equals would always return false which results in a Exception for the First() call.
+                var propertyInfo = method.ReflectedType!.GetProperties().FirstOrDefault(p => p.GetGetMethod() == method || p.GetSetMethod() == method);
+                if (propertyInfo is null)
+                {
+                    // If method definition is from base type
+                    if (!method.ReflectedType!.Equals(method.DeclaringType))
+                    {
+                        var othermethod = methods.Single(m => m.Name == method.Name && m != method);
+                        // If there is another method with the same name that belongs to a property,
+                        // it isn't an overload, but a property defined with "new" keyword, to hide
+                        // the base property, in this case, its base definition is pointing to itself
+                        // see: https://stackoverflow.com/questions/288357/how-does-reflection-tell-me-when-a-property-is-hiding-an-inherited-member-with-t
+                        if (othermethod != null && othermethod.IsSpecialName && !othermethod.DeclaringType!.Equals(method.DeclaringType)
+                            // GetBaseDefinition can't be used in reflection-only context, so check only
+                            // DeclaringType of both methods
+                            /*othermethod.GetBaseDefinition() != method.GetBaseDefinition()*/)
+                        {
+                            // Skip this method, because reflection doesn't list a duplicate property,
+                            // which belongs to this method, only the method is listed twice.
+                            continue;
+                        }
+                    }
+                    throw new InvalidOperationException($"Can't find property that belongs to the method {method.Name}");
+                }
                 alternateName = alternateName.Substring(4);
                 if (methodName.StartsWith("get_", StringComparison.Ordinal))
                 {
