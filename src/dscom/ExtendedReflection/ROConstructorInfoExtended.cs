@@ -25,6 +25,14 @@ internal sealed class ROConstructorInfoExtended : ConstructorInfo
     public override string Name => _roConstructorInfo.Name;
     public override Type? ReflectedType => _roTypeExtended;
 
+    public override bool IsGenericMethod => _roConstructorInfo.IsGenericMethod;
+    public override bool IsGenericMethodDefinition => _roConstructorInfo.IsGenericMethodDefinition;
+    public override bool ContainsGenericParameters => _roConstructorInfo.ContainsGenericParameters;
+
+    public override Type[] GetGenericArguments()
+        => _roConstructorInfo.GetGenericArguments()
+            .Select(t => new ROTypeExtended(_roTypeExtended._roAssemblyExtended, t)).ToArray();
+
     public override IList<CustomAttributeData> GetCustomAttributesData()
         => _roConstructorInfo.GetCustomAttributesData();
 
