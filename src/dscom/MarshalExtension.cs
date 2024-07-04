@@ -173,7 +173,7 @@ internal static class MarshalExtension
         return guid;
     }
 
-    private static string GetFullyQualifiedNameForClassNestedAware(Type type)
+    internal static string GetFullyQualifiedNameForClassNestedAware(Type type)
     {
         StringBuilder builder = new();
         if (type.IsArray)
