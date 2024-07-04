@@ -68,7 +68,11 @@ internal static partial class Extensions
         {
             rtAssemblyNames = rtAssemblyNames.Append(new AssemblyName(forwardedFrom.AssemblyFullName));
         }
-        else if (_mappingForwardedTypesFrom[rtType.FullName!] is var forwardedFromAssemblies)
+        // Sometimes ref assembly is different to assembly specified by TypeForwardedFromAttribute
+        // e.g. in .NET Core System.Object points to mscorlib as forwarded from, but
+        // ref assembly was actually System.Runtime.
+        // So always append our custom mapping, if there is one for the type.
+        if (_mappingForwardedTypesFrom[rtType.FullName!] is var forwardedFromAssemblies)
         {
             rtAssemblyNames = rtAssemblyNames.Concat(forwardedFromAssemblies.Select(a => a.GetName()));
         }
