@@ -13,6 +13,7 @@ internal sealed class ROTypeExtended : Type
     internal readonly Type _roType;
     private ROTypeExtended? _roBaseType;
     private ROTypeExtended? _roDeclaringType;
+    private MethodBase? _roDeclaringMethod;
     private ROModuleExtended? _roModuleExtended;
 
     public ROTypeExtended(ROAssemblyExtended roAssemblyExtended, Type roType)
@@ -37,6 +38,13 @@ internal sealed class ROTypeExtended : Type
         (_roBaseType ??= new ROTypeExtended(_roAssemblyExtended, _roType.BaseType));
     public override Type? DeclaringType => _roType.DeclaringType is null ? null :
         (_roDeclaringType ??= new ROTypeExtended(_roAssemblyExtended, _roType.DeclaringType));
+    public override MethodBase? DeclaringMethod => _roType.DeclaringMethod is null ? null :
+        (_roDeclaringMethod ??= _roType.DeclaringMethod switch
+        {
+            MethodInfo mi => new ROMethodInfoExtended(this, mi),
+            ConstructorInfo ci => new ROConstructorInfoExtended(this, ci),
+            _ => throw new InvalidOperationException($"No extension type for {_roType.DeclaringMethod.GetType()}")
+        });
     public override string? FullName => _roType.FullName;
     public override Guid GUID => _roType.GUID;
     public override int MetadataToken => _roType.MetadataToken;
@@ -70,6 +78,10 @@ internal sealed class ROTypeExtended : Type
         }
         return type != null;
     }
+    public override bool IsConstructedGenericType => _roType.IsConstructedGenericType;
+    public override bool IsGenericParameter => _roType.IsGenericParameter;
+    public override bool IsGenericType => _roType.IsGenericType;
+    public override bool IsGenericTypeDefinition => _roType.IsGenericTypeDefinition;
     protected override bool IsPointerImpl() => _roType.IsPointer;
     protected override bool IsPrimitiveImpl() => _roType.IsPrimitive;
     public override bool IsEnum => _roType.IsEnum;
@@ -139,6 +151,29 @@ internal sealed class ROTypeExtended : Type
 
     public override IList<CustomAttributeData> GetCustomAttributesData()
         => _roType.GetCustomAttributesData();
+
+    public override bool ContainsGenericParameters => _roType.ContainsGenericParameters;
+    public override GenericParameterAttributes GenericParameterAttributes
+        => _roType.GenericParameterAttributes;
+    public override int GenericParameterPosition => _roType.GenericParameterPosition;
+
+    public override Type GetGenericTypeDefinition()
+        => new ROTypeExtended(_roAssemblyExtended, _roType.GetGenericTypeDefinition());
+
+    public override Type[] GetGenericArguments()
+        => _roType.GetGenericArguments()
+            .Select(t => new ROTypeExtended(_roAssemblyExtended, t)).ToArray();
+
+    public override Type[] GetGenericParameterConstraints()
+        => _roType.GetGenericParameterConstraints()
+            .Select(t => new ROTypeExtended(_roAssemblyExtended, t)).ToArray();
+
+    public override Type MakeGenericType(params Type[] typeArguments)
+    {
+        var roTypeArgs = typeArguments.Select(
+            t => t is ROTypeExtended extended ? extended._roType : t).ToArray();
+        return new ROTypeExtended(_roAssemblyExtended, _roType.MakeGenericType(roTypeArgs));
+    }
 
     public override Type? GetElementType()
     {

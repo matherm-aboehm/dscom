@@ -31,6 +31,24 @@ internal sealed class ROMethodInfoExtended : MethodInfo
     public override ParameterInfo ReturnParameter => _roReturnParamExtended ??=
         new ROParameterInfoExtended(this, _roMethodInfo.ReturnParameter);
 
+    public override bool IsGenericMethod => _roMethodInfo.IsGenericMethod;
+    public override bool IsGenericMethodDefinition => _roMethodInfo.IsGenericMethodDefinition;
+    public override bool ContainsGenericParameters => _roMethodInfo.ContainsGenericParameters;
+
+    public override Type[] GetGenericArguments()
+        => _roMethodInfo.GetGenericArguments()
+            .Select(t => new ROTypeExtended(_roTypeExtended._roAssemblyExtended, t)).ToArray();
+
+    public override MethodInfo GetGenericMethodDefinition()
+        => new ROMethodInfoExtended(_roTypeExtended, _roMethodInfo.GetGenericMethodDefinition());
+
+    public override MethodInfo MakeGenericMethod(params Type[] typeArguments)
+    {
+        var roTypeArgs = typeArguments.Select(
+            t => t is ROTypeExtended extended ? extended._roType : t).ToArray();
+        return new ROMethodInfoExtended(_roTypeExtended, _roMethodInfo.MakeGenericMethod(roTypeArgs));
+    }
+
     public override MethodInfo GetBaseDefinition()
     {
         var mibase = _roMethodInfo.GetBaseDefinition();
