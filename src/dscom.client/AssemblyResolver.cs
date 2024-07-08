@@ -23,11 +23,16 @@ internal sealed class AssemblyResolver : MetadataAssemblyResolver, IDisposable
 {
     private readonly MetadataLoadContext _context;
     private bool _disposedValue;
+    private readonly bool _enableLogging;
 
     internal AssemblyResolver(TypeLibConverterOptions options)
     {
         Options = options;
         _context = new MetadataLoadContext(this);
+        // Do not enable logging until MetadataLoadContext is created, to filter out
+        // some missing core assemblies, but the constructor should still throw if all
+        // core assemblies are missing.
+        _enableLogging = true;
     }
 
     public override Assembly? Resolve(MetadataLoadContext context, AssemblyName assemblyName)
@@ -74,7 +79,17 @@ internal sealed class AssemblyResolver : MetadataAssemblyResolver, IDisposable
             }
         }
 
+        LogWarning(0, $"Failed to resolve {assemblyName.Name} from the following directories: {string.Join(", ", asmPaths)}");
+
         return null;
+    }
+
+    private void LogWarning(int eventCode, string eventMsg)
+    {
+        if (_enableLogging)
+        {
+            Console.Error.WriteLine($"dscom : warning TX{eventCode:X8} : {eventMsg}");
+        }
     }
 
     public ROAssemblyExtended LoadAssembly(string path)
