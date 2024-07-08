@@ -27,6 +27,7 @@ internal sealed class AssemblyResolver : MetadataAssemblyResolver, IDisposable
     private readonly AssemblyLoadContext _runtimeContext;
 
     private bool _disposedValue;
+    private readonly bool _enableLogging;
 
     internal AssemblyResolver(string[] paths)
     {
@@ -34,6 +35,10 @@ internal sealed class AssemblyResolver : MetadataAssemblyResolver, IDisposable
         _reflectionOnlyContext = new MetadataLoadContext(this);
         _runtimeContext = new AssemblyLoadContext("dscom", true);
         _runtimeContext.Resolving += Context_Resolving;
+        // Do not enable logging until MetadataLoadContext is created, to filter out
+        // some missing core assemblies, but the constructor should still throw if all
+        // core assemblies are missing.
+        _enableLogging = true;
     }
 
     private Assembly? Context_Resolving(AssemblyLoadContext context, AssemblyName name)
@@ -52,6 +57,8 @@ internal sealed class AssemblyResolver : MetadataAssemblyResolver, IDisposable
                 return context.LoadFromAssemblyPath(exeToLoad);
             }
         }
+
+        LogWarning(0, $"Failed to resolve {name.Name} from the following directories: {string.Join(", ", _paths)}");
 
         return null;
     }
@@ -76,7 +83,7 @@ internal sealed class AssemblyResolver : MetadataAssemblyResolver, IDisposable
         // Last resort, search for simple name in currently loaded runtime assemblies.
         var rtAssembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(
             a => a.GetName().Name == assemblyName.Name);
-        if (rtAssembly == null)
+        if (_enableLogging && rtAssembly == null)
         {
             // Or try to load into runtime context using AssemblyName 
             // (use default runtime resolution)
@@ -98,7 +105,17 @@ internal sealed class AssemblyResolver : MetadataAssemblyResolver, IDisposable
             }
         }
 
+        LogWarning(0, $"Failed to resolve {assemblyName.Name} from the following directories: {string.Join(", ", _paths)}");
+
         return null;
+    }
+
+    private void LogWarning(int eventCode, string eventMsg)
+    {
+        if (_enableLogging)
+        {
+            Console.Error.WriteLine($"dscom : warning TX{eventCode:X8} : {eventMsg}");
+        }
     }
 
     public Assembly LoadAssembly(string path)
