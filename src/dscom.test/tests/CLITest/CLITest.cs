@@ -136,11 +136,20 @@ public class CLITest : CLITestBase
         Assert.True(File.Exists(TestAssemblyTemporyTlbFilePath), $"File {TestAssemblyTemporyTlbFilePath} should be available.");
         Assert.True(File.Exists(dependentTlbPath), $"File {dependentTlbPath} should be available.");
 
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath, TestAssemblyDependencyPath);
+
         var dumpResult = Execute(DSComPath, "tlbdump", TestAssemblyTemporyTlbFilePath, "--out", TestAssemblyTemporyYamlFilePath, "--tlbrefpath", TemporaryTestDirectoryPath);
         // xunit does not support Assert.Equal with custom message, so the following is the only way
         // see: https://github.com/xunit/xunit/issues/350
         Assert.True(0 == dumpResult.ExitCode, $"because it should succeed. ExitCode: {dumpResult.ExitCode} Error: {dumpResult.StdErr}. Output: {dumpResult.StdOut}");
         Assert.True(File.Exists(TestAssemblyTemporyYamlFilePath), $"File {TestAssemblyTemporyYamlFilePath} should be available.");
+
+        if (Environment.OSVersion.Version == new Version(10, 0, 20348, 0)) //Windows Server 2022 Version 21H2
+        {
+            var unregisterResult = Execute(DSComPath, "tlbunregister", dependentTlbPath);
+            Assert.Equal(0, unregisterResult.ExitCode);
+        }
+        TlbCommandShouldNotRegisterTypeLib("tlbdump", TestAssemblyPath, TestAssemblyDependencyPath);
     }
 
     [Fact]
@@ -156,6 +165,8 @@ public class CLITest : CLITestBase
 
         Assert.True(File.Exists(TestAssemblyTemporyTlbFilePath), $"File {TestAssemblyTemporyTlbFilePath} should be available.");
         Assert.True(File.Exists(dependentTlbPath), $"File {dependentTlbPath} should be available.");
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath, TestAssemblyDependencyPath);
 
         OleAut32.LoadTypeLibEx(embedPath, REGKIND.NONE, out var embeddedTypeLib);
         using (embeddedTypeLib.AsDisposableComObject())
@@ -199,6 +210,8 @@ public class CLITest : CLITestBase
         Assert.DoesNotContain($"{fileName} does not have a type library", result.StdErr);
 
         Assert.True(File.Exists(tlbFilePath), $"File {tlbFilePath} should be available.");
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath);
     }
 
     [Fact]
@@ -212,6 +225,8 @@ public class CLITest : CLITestBase
         Assert.False(File.Exists(TestAssemblyDependencyTemporyTlbFilePath), $"File {TestAssemblyDependencyTemporyTlbFilePath} should not be available.");
         Assert.Contains("auto generation of dependent type libs is disabled", result.StdErr);
         Assert.Contains(Path.GetFileNameWithoutExtension(TestAssemblyDependencyPath), result.StdErr);
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath, TestAssemblyDependencyPath);
     }
 
     [Fact]
@@ -225,6 +240,8 @@ public class CLITest : CLITestBase
         Assert.True(0 == result.ExitCode, $"because it should succeed. ExitCode: {result.ExitCode} Error: {result.StdErr}. Output: {result.StdOut}");
         Assert.True(File.Exists(TestAssemblyTemporyTlbFilePath), $"File {TestAssemblyTemporyTlbFilePath} should be available.");
         Assert.True(File.Exists(dependentTlbPath), $"File {dependentTlbPath} should be available.");
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath, TestAssemblyDependencyPath);
     }
 
     [Fact]
@@ -238,6 +255,8 @@ public class CLITest : CLITestBase
         Assert.True(0 == result.ExitCode, $"because it should succeed. ExitCode: {result.ExitCode} Error: {result.StdErr}. Output: {result.StdOut}");
         Assert.True(File.Exists(TestAssemblyTemporyTlbFilePath), $"File {TestAssemblyTemporyTlbFilePath} should be available.");
         Assert.True(File.Exists(dependentTlbPath), $"File {dependentTlbPath} should be available.");
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath, TestAssemblyDependencyPath);
     }
 
     [Fact]
@@ -250,6 +269,8 @@ public class CLITest : CLITestBase
         Assert.True(File.Exists(TestAssemblyTemporyTlbFilePath), $"File {TestAssemblyTemporyTlbFilePath} should be available.");
         Assert.Empty(result.StdOut.Trim());
         Assert.Empty(result.StdErr.Trim());
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath, TestAssemblyDependencyPath);
     }
 
     [Fact]
@@ -264,6 +285,8 @@ public class CLITest : CLITestBase
         Assert.True(File.Exists(TestAssemblyTemporyTlbFilePath), $"File {TestAssemblyTemporyTlbFilePath} should be available.");
         Assert.Empty(result.StdOut.Trim());
         Assert.Empty(result.StdErr.Trim());
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath, TestAssemblyDependencyPath);
     }
 
     [Fact]
@@ -277,11 +300,15 @@ public class CLITest : CLITestBase
         Assert.True(0 == result.ExitCode, $"because it should succeed. ExitCode: {result.ExitCode} Error: {result.StdErr}. Output: {result.StdOut}");
         Assert.True(File.Exists(TestAssemblyTemporyTlbFilePath), $"File {TestAssemblyTemporyTlbFilePath} should be available.");
 
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath, TestAssemblyDependencyPath);
+
         var dumpResult = Execute(DSComPath, "tlbdump", TestAssemblyTemporyTlbFilePath, "/out", TestAssemblyTemporyYamlFilePath, "/tlbrefpath", TemporaryTestDirectoryPath);
         Assert.True(0 == dumpResult.ExitCode, $"because it should succeed. Error: ${dumpResult.StdErr}. Output: ${dumpResult.StdOut}");
         Assert.True(File.Exists(TestAssemblyTemporyYamlFilePath), $"File {TestAssemblyTemporyYamlFilePath} should be available.");
 
         var yamlContent = File.ReadAllText(TestAssemblyTemporyYamlFilePath);
         Assert.Contains($"guid: {guid}", yamlContent);
+
+        TlbCommandShouldNotRegisterTypeLib("tlbdump", TestAssemblyPath, TestAssemblyDependencyPath);
     }
 }
