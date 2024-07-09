@@ -78,17 +78,42 @@ public abstract class CLITestBase : IClassFixture<CompileReleaseFixture>, IDispo
         process.StartInfo.UseShellExecute = false;
         process.StartInfo.RedirectStandardOutput = true;
         process.StartInfo.RedirectStandardError = true;
-        var sb = new StringBuilder();
-        process.ErrorDataReceived += new DataReceivedEventHandler((sender, e) => { sb.Append(e.Data); });
+        // To avoid deadlocks, need async read from both streams to keep the buffers empty, see:
+        //https://stackoverflow.com/questions/139593/processstartinfo-hanging-on-waitforexit-why
+        var sbErr = new StringBuilder();
+        var sbOut = new StringBuilder();
+        using var mreErr = new ManualResetEvent(false);
+        using var mreOut = new ManualResetEvent(false);
+        static void AppendLineFromEventArgs(DataReceivedEventArgs e, StringBuilder sb, ManualResetEvent mre)
+        {
+            if (e.Data is not null)
+            {
+                sb.Append(e.Data);
+            }
+            else // redirected stream is closed
+            {
+                mre.Set();
+            }
+        }
+        process.ErrorDataReceived += new DataReceivedEventHandler((sender, e) => AppendLineFromEventArgs(e, sbErr, mreErr));
+        process.OutputDataReceived += new DataReceivedEventHandler((sender, e) => AppendLineFromEventArgs(e, sbOut, mreOut));
         process.StartInfo.FileName = filename;
         process.StartInfo.Arguments = string.Join(" ", args);
         process.Start();
 
         process.BeginErrorReadLine();
+        process.BeginOutputReadLine();
+        var timeout = !process.WaitForExit(60000);
+        if (timeout)
+        {
+            process.Kill();
+        }
+        mreOut.WaitOne(10000);
+        mreErr.WaitOne(10000);
         process.WaitForExit();
-        processOutput.StdOut = process.StandardOutput.ReadToEnd();
-        processOutput.StdErr = sb.ToString();
-        processOutput.ExitCode = process.ExitCode;
+        processOutput.StdOut = sbOut.ToString();
+        processOutput.StdErr = sbErr.ToString();
+        processOutput.ExitCode = timeout ? -1 : process.ExitCode;
 
         return processOutput;
     }
