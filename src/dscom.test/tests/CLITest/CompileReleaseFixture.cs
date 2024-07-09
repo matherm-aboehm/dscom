@@ -115,6 +115,7 @@ public class CompileReleaseFixture : IDisposable
             var tmpfile = Path.Combine(dirpath, $"{Guid.NewGuid}.tmp");
             File.Move(file, tmpfile);
             var retry = true;
+            var retrycount = 0;
             do
             {
                 try
@@ -123,14 +124,19 @@ public class CompileReleaseFixture : IDisposable
                     retry = false;
                 }
                 catch (IOException e) when
-                    (e.HResult == unchecked((int)0x80070020) /* HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION) */)
+                    (retrycount < 100 && e.HResult == unchecked((int)0x80070020) /* HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION) */)
                 {
                     Thread.Sleep(100);
+                    retrycount++;
                 }
             } while (retry);
         }
         cde.Signal();
-        cde.Wait();
+        var timeout = !cde.Wait(30000);
+        if (timeout)
+        {
+            throw new TimeoutException($"Preparing the test directory failed. Some files with pattern '{filter}' can't be deleted.");
+        }
     }
 
     public void PrepareTestDirectory()
