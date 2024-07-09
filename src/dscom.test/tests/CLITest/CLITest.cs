@@ -143,10 +143,19 @@ public class CLITest : CLITestBase
         File.Exists(tlbFilePath).Should().BeTrue($"File {tlbFilePath} should be available.");
         File.Exists(dependentTlbPath).Should().BeTrue($"File {dependentTlbPath} should be available.");
 
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath, TestAssemblyDependencyPath);
+
         var dumpResult = Execute(DSComPath, "tlbdump", tlbFilePath);
         dumpResult.ExitCode.Should().Be(0);
 
         File.Exists(yamlFilePath).Should().BeTrue($"File {yamlFilePath} should be available.");
+
+        if (Environment.OSVersion.Version == new Version(10, 0, 20348, 0)) //Windows Server 2022 Version 21H2
+        {
+            var unregisterResult = Execute(DSComPath, "tlbunregister", dependentTlbPath);
+            unregisterResult.ExitCode.Should().Be(0);
+        }
+        TlbCommandShouldNotRegisterTypeLib("tlbdump", TestAssemblyPath, TestAssemblyDependencyPath);
     }
 
     [StaFact]
@@ -165,6 +174,8 @@ public class CLITest : CLITestBase
 
         File.Exists(tlbFilePath).Should().BeTrue($"File {tlbFilePath} should be available.");
         File.Exists(dependentTlbPath).Should().BeTrue($"File {dependentTlbPath} should be available.");
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath, TestAssemblyDependencyPath);
 
         OleAut32.LoadTypeLibEx(embedPath, REGKIND.NONE, out var embeddedTypeLib);
         OleAut32.LoadTypeLibEx(tlbFilePath, REGKIND.NONE, out var sourceTypeLib);
@@ -192,6 +203,8 @@ public class CLITest : CLITestBase
         result.StdErr.Should().NotContain($"{fileName} does not have a type library");
 
         File.Exists(tlbFilePath).Should().BeTrue($"File {tlbFilePath} should be available.");
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath);
     }
 
     [StaFact]
@@ -211,6 +224,8 @@ public class CLITest : CLITestBase
 
         result.StdErr.Should().Contain("auto generation of dependent type libs is disabled");
         result.StdErr.Should().Contain(Path.GetFileNameWithoutExtension(TestAssemblyDependencyPath));
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath, TestAssemblyDependencyPath);
     }
 
     [StaFact]
@@ -227,6 +242,8 @@ public class CLITest : CLITestBase
 
         File.Exists(tlbFilePath).Should().BeTrue($"File {tlbFilePath} should be available.");
         File.Exists(dependentTlbPath).Should().BeTrue($"File {dependentTlbPath} should be available.");
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath, TestAssemblyDependencyPath);
     }
 
     [StaFact]
@@ -243,6 +260,8 @@ public class CLITest : CLITestBase
 
         File.Exists(tlbFilePath).Should().BeTrue($"File {tlbFilePath} should be available.");
         File.Exists(dependentTlbPath).Should().BeTrue($"File {dependentTlbPath} should be available.");
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath, TestAssemblyDependencyPath);
     }
 
     [StaFact]
@@ -259,6 +278,8 @@ public class CLITest : CLITestBase
 
         result.StdOut.Trim().Should().BeNullOrEmpty();
         result.StdErr.Trim().Should().BeNullOrEmpty();
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath, TestAssemblyDependencyPath);
     }
 
     [StaFact]
@@ -277,6 +298,8 @@ public class CLITest : CLITestBase
 
         result.StdOut.Trim().Should().BeNullOrEmpty();
         result.StdErr.Trim().Should().BeNullOrEmpty();
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath, TestAssemblyDependencyPath);
     }
 
     [StaFact]
@@ -296,6 +319,8 @@ public class CLITest : CLITestBase
         result.ExitCode.Should().Be(0);
         File.Exists(tlbFilePath).Should().BeTrue($"File {tlbFilePath} should be available.");
 
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", TestAssemblyPath, TestAssemblyDependencyPath);
+
         var dumpResult = Execute(DSComPath, "tlbdump", tlbFilePath, "/out", yamlFilePath);
         dumpResult.ExitCode.Should().Be(0);
 
@@ -303,5 +328,7 @@ public class CLITest : CLITestBase
 
         var yamlContent = File.ReadAllText(yamlFilePath);
         yamlContent.Should().Contain($"guid: {guid}");
+
+        TlbCommandShouldNotRegisterTypeLib("tlbdump", TestAssemblyPath, TestAssemblyDependencyPath);
     }
 }
