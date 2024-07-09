@@ -14,6 +14,7 @@
 
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.Loader;
 using System.Text;
 using Xunit;
 
@@ -131,6 +132,27 @@ public abstract class CLITestBase : IClassFixture<CompileReleaseFixture>, IDispo
         var embedFile = Path.Combine(Path.GetDirectoryName(sourceAssemblyFile) ?? string.Empty, Path.GetFileNameWithoutExtension(sourceAssemblyFile) + ".comhost" + Path.GetExtension(sourceAssemblyFile));
         Assert.True(File.Exists(embedFile));
         return embedFile;
+    }
+
+    internal static void TlbCommandShouldNotRegisterTypeLib(string command, params string[] assemblyPaths)
+    {
+        var loadContext = new AssemblyLoadContext("load-ctx-clitest", true);
+        try
+        {
+            foreach (var assemblyPath in assemblyPaths)
+            {
+                //var anDemoProjectAssembly2 = AssemblyName.GetAssemblyName(TestAssemblyDependencyPath);
+                var identifier = loadContext.LoadFromAssemblyPath(assemblyPath).GetLibIdentifier();
+                //Assert.Equal("6dfe7b4e-9400-3aae-ac08-c120a280ef6b", identifier.LibID.ToString());
+                var hr = OleAut32.QueryPathOfRegTypeLib(identifier.LibID, identifier.MajorVersion, identifier.MinorVersion,
+                    Constants.LCID_NEUTRAL, out var typeLibPathFromRegistry);
+                Assert.True(0 != hr, $"{command} should not register any type lib, but it did with path '{typeLibPathFromRegistry}'");
+            }
+        }
+        finally
+        {
+            loadContext.Unload();
+        }
     }
 
     public void Dispose()
