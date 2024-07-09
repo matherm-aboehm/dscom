@@ -13,6 +13,7 @@
 // limitations under the License.
 
 using System.Diagnostics;
+using System.Runtime.Loader;
 using System.Text;
 
 namespace dSPACE.Runtime.InteropServices.Tests;
@@ -147,6 +148,27 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
         result.StdErr.Trim().Should().Contain("not found");
     }
 
+    private static void TlbCommandShouldNotRegisterTypeLib(string command, params string[] assemblyPaths)
+    {
+        var loadContext = new AssemblyLoadContext("load-ctx-clitest", true);
+        try
+        {
+            foreach (var assemblyPath in assemblyPaths)
+            {
+                //var anDemoProjectAssembly2 = AssemblyName.GetAssemblyName(DemoProjectAssembly2Path);
+                var identifier = loadContext.LoadFromAssemblyPath(assemblyPath).GetLibIdentifier();
+                //identifier.LibID.Should().Be("6dfe7b4e-9400-3aae-ac08-c120a280ef6b");
+                var hr = OleAut32.QueryPathOfRegTypeLib(identifier.LibID, identifier.MajorVersion, identifier.MinorVersion,
+                    Constants.LCID_NEUTRAL, out var typeLibPathFromRegistry);
+                hr.Should().NotBe(0, "{0} should not register any type lib, but it did with path '{1}'", command, typeLibPathFromRegistry);
+            }
+        }
+        finally
+        {
+            loadContext.Unload();
+        }
+    }
+
     [Fact]
     public void TlbExportAndDemoAssemblyAndCallWithTlbDump_ExitCodeIs0AndTlbIsAvailableAndValid()
     {
@@ -164,10 +186,19 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
         File.Exists(tlbFilePath).Should().BeTrue($"File {tlbFilePath} should be available.");
         File.Exists(dependentTlbPath).Should().BeTrue($"File {dependentTlbPath} should be available.");
 
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", DemoProjectAssembly1Path, DemoProjectAssembly2Path);
+
         var dumpResult = Execute(DSComPath, "tlbdump", tlbFilePath);
         dumpResult.ExitCode.Should().Be(0);
 
         File.Exists(yamlFilePath).Should().BeTrue($"File {yamlFilePath} should be available.");
+
+        if (Environment.OSVersion.Version == new Version(10, 0, 20348, 0)) //Windows Server 2022 Version 21H2
+        {
+            var unregisterResult = Execute(DSComPath, "tlbunregister", dependentTlbPath);
+            unregisterResult.ExitCode.Should().Be(0);
+        }
+        TlbCommandShouldNotRegisterTypeLib("tlbdump", DemoProjectAssembly1Path, DemoProjectAssembly2Path);
     }
 
     [Fact]
@@ -187,6 +218,8 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
         result.StdErr.Should().NotContain($"{fileName} does not have a type library");
 
         File.Exists(tlbFilePath).Should().BeTrue($"File {tlbFilePath} should be available.");
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", DemoProjectAssembly3Path);
     }
 
     [Fact]
@@ -206,6 +239,8 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
 
         result.StdErr.Should().Contain("auto generation of dependent type libs is disabled");
         result.StdErr.Should().Contain(Path.GetFileNameWithoutExtension(DemoProjectAssembly2Path));
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", DemoProjectAssembly1Path, DemoProjectAssembly2Path);
     }
 
     [Fact]
@@ -222,6 +257,8 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
 
         File.Exists(tlbFilePath).Should().BeTrue($"File {tlbFilePath} should be available.");
         File.Exists(dependentTlbPath).Should().BeTrue($"File {dependentTlbPath} should be available.");
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", DemoProjectAssembly1Path, DemoProjectAssembly2Path);
     }
 
     [Fact]
@@ -238,6 +275,8 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
 
         File.Exists(tlbFilePath).Should().BeTrue($"File {tlbFilePath} should be available.");
         File.Exists(dependentTlbPath).Should().BeTrue($"File {dependentTlbPath} should be available.");
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", DemoProjectAssembly1Path, DemoProjectAssembly2Path);
     }
 
     [Fact]
@@ -254,6 +293,8 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
 
         result.StdOut.Trim().Should().BeNullOrEmpty();
         result.StdErr.Trim().Should().BeNullOrEmpty();
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", DemoProjectAssembly1Path, DemoProjectAssembly2Path);
     }
 
     [Fact]
@@ -270,6 +311,8 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
 
         result.StdOut.Trim().Should().BeNullOrEmpty();
         result.StdErr.Trim().Should().BeNullOrEmpty();
+
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", DemoProjectAssembly1Path, DemoProjectAssembly2Path);
     }
 
     [Fact]
@@ -289,6 +332,8 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
         result.ExitCode.Should().Be(0);
         File.Exists(tlbFilePath).Should().BeTrue($"File {tlbFilePath} should be available.");
 
+        TlbCommandShouldNotRegisterTypeLib("tlbexport", DemoProjectAssembly1Path, DemoProjectAssembly2Path);
+
         var dumpResult = Execute(DSComPath, "tlbdump", tlbFilePath, "/out", yamlFilePath);
         dumpResult.ExitCode.Should().Be(0);
 
@@ -296,6 +341,8 @@ public class CLITest : IClassFixture<CompileReleaseFixture>
 
         var yamlContent = File.ReadAllText(yamlFilePath);
         yamlContent.Should().Contain($"guid: {guid}");
+
+        TlbCommandShouldNotRegisterTypeLib("tlbdump", DemoProjectAssembly1Path, DemoProjectAssembly2Path);
     }
 
     internal static ProcessOutput Execute(string filename, params string[] args)
