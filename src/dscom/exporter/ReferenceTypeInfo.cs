@@ -35,7 +35,7 @@ internal class ReferenceTypeInfo : BaseInfo
             typeLib2.GetDocumentation(-1, out var typeLibName, out var _, out var _, out var _);
 
             IsImported = true;
-            ImportedReferenceType = new ImportedReferenceTypeInfo(typeAttributes.Guid, typeAttributes.Guid, typeLibName, this, nameof(ImportedReferenceType));
+            ImportedReferenceType = new ImportedReferenceTypeInfo(typeLibAttributes.Guid, typeAttributes.Guid, typeLibName, this, nameof(ImportedReferenceType));
         }
         else
         {
