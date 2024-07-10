@@ -42,4 +42,24 @@ public struct CUSTDATA
             return items.ToArray();
         }
     }
+
+    /// <summary>
+    /// Indexer property for the CUSTDATAITEM.
+    /// </summary>
+    /// <param name="index">Index of item.</param>
+    /// <returns>The CUSTDATAITEM</returns>
+    /// <exception cref="IndexOutOfRangeException">Index is out of bounds.</exception>
+    public CUSTDATAITEM this[int index]
+    {
+        get
+        {
+            if (index < 0 || index >= cCustData)
+            {
+                throw new IndexOutOfRangeException();
+            }
+            var ptr = new IntPtr((long)prgCustData + (Marshal.SizeOf<CUSTDATAITEM>() * index));
+            var item = Marshal.PtrToStructure<CUSTDATAITEM>(ptr);
+            return item;
+        }
+    }
 }

@@ -89,7 +89,7 @@ internal sealed class FunctionInfo : BaseInfo
 
             for (var i = 0; i < customData.cCustData; i++)
             {
-                CustomData.Add(new CustomDataItemInfo(customData.Items[i], this, nameof(CustomData)) { OwningCollection = CustomData });
+                CustomData.Add(new CustomDataItemInfo(customData[i], this, nameof(CustomData)) { OwningCollection = CustomData });
             }
         }
         finally
