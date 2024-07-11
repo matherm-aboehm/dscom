@@ -50,12 +50,24 @@
       See https://github.com/Microsoft/msbuild/issues/3121
       -->
       <_PackageFileTemp Include="$(MsBuildThisFileDirectory)\bin\$(Configuration)\*\dSPACE.Runtime.InteropServices.dll" />
-      <_PackageFiles Include="@(_PackageFileTemp)">
-        <PackagePath>build\_dscom</PackagePath>
-        <NuGetRecursiveDir>%(RecursiveDir)</NuGetRecursiveDir>
+      <_TargetPathsToSymbolsTemp Include="$(MsBuildThisFileDirectory)\bin\$(Configuration)\*\dSPACE.Runtime.InteropServices.pdb" />
+      <!-- Can't use _PackageFiles when TPM is specified with TargetPlatformIdentifier,
+        because the final target path is only constructed from PackagePath and 
+        RecursiveDir metadata, without any translation.
+        Instead use specific items for build output types, so TFMs get properly
+        translated to include TPMs from assets lock file. -->
+      <_BuildOutputInPackage Include="@(_PackageFileTemp)">
+        <FinalOutputPath>%(FullPath)</FinalOutputPath>
+        <TargetFramework>$([System.String]::new('%(RecursiveDir)').TrimEnd('\'))</TargetFramework>
         <Visible>false</Visible>
-        <BuildAction>Content</BuildAction>
-      </_PackageFiles>
+        <TargetPath>%(Filename)%(Extension)</TargetPath>
+      </_BuildOutputInPackage>
+      <_TargetPathsToSymbols Include="@(_TargetPathsToSymbolsTemp)">
+        <FinalOutputPath>%(FullPath)</FinalOutputPath>
+        <TargetFramework>$([System.String]::new('%(RecursiveDir)').TrimEnd('\'))</TargetFramework>
+        <Visible>false</Visible>
+        <TargetPath>%(Filename)%(Extension)</TargetPath>
+      </_TargetPathsToSymbols>
     </ItemGroup>
   </Target>
 
