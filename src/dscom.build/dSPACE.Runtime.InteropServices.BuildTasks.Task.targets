@@ -20,12 +20,12 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <_DsComTargetFramework>net6.0</_DsComTargetFramework>
+    <_DsComTargetFramework>net6.0-windows7.0</_DsComTargetFramework>
     <!-- Use the right task assembly for the runtime MSBuild is executing on
          Maybe someday .NET Core tasks can run all MSBuild variants, so a single task assembly can be used.
          Tracked issue: https://github.com/dotnet/msbuild/issues/4834 -->
     <_DsComTargetFramework Condition="'$(MSBuildRuntimeType)' != 'Core'">net48</_DsComTargetFramework>
-    <_DsComTargetFramework Condition="'$(MSBuildRuntimeType)' == 'Core' AND '$(NETCoreSdkVersion)' &gt;= '8.0'">net8.0</_DsComTargetFramework>
+    <_DsComTargetFramework Condition="'$(MSBuildRuntimeType)' == 'Core' AND '$(NETCoreSdkVersion)' != '' AND '$(NETCoreSdkVersion)' &gt;= '8.0'">net8.0-windows7.0</_DsComTargetFramework>
     <!-- Find DsCom Build Tasks -->
     <_DsComTaskAssemblyFile>$(MsBuildThisFileDirectory)_dscom\$(_DsComTargetFramework)\dSPACE.Runtime.InteropServices.BuildTasks.dll</_DsComTaskAssemblyFile>
   </PropertyGroup>
