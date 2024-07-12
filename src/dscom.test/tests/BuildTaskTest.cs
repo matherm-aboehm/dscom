@@ -13,6 +13,7 @@
 // limitations under the License.
 
 using System.Collections;
+using System.Runtime.InteropServices;
 using dSPACE.Runtime.InteropServices.BuildTasks;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
@@ -161,6 +162,18 @@ public class BuildTaskTest : BaseTest
                     taskItems.Add(GetTaskItem(assembly.Location));
                 }
             }
+            var runtimeDir = RuntimeEnvironment.GetRuntimeDirectory();
+            var runtimeVersion = Version.Parse(RuntimeEnvironment.GetSystemVersion().TrimStart('v'));
+            var windowsDesktopDir = Path.Combine(runtimeDir, @$"..\..\Microsoft.WindowsDesktop.App\{runtimeVersion}");
+            windowsDesktopDir = Path.GetFullPath(windowsDesktopDir);
+            if (Directory.Exists(windowsDesktopDir))
+            {
+                foreach (var file in Directory.EnumerateFiles(windowsDesktopDir, "*.dll"))
+                {
+                    taskItems.Insert(0, GetTaskItem(file));
+                }
+            }
+
             classUnderTest = new TlbExport
             {
                 AssemblyPaths = taskItems.ToArray(),
