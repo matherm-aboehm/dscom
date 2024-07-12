@@ -13,7 +13,10 @@
 // limitations under the License.
 
 #if NET5_0_OR_GREATER
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Runtime.Loader;
+using Microsoft.Build.Utilities;
 #else
 using System.Reflection;
 #endif
@@ -27,6 +30,109 @@ namespace dSPACE.Runtime.InteropServices.BuildTasks;
 /// </summary>
 public sealed class TlbExport : Microsoft.Build.Utilities.Task
 {
+#if NET5_0_OR_GREATER
+    //HACK: Neither dotnet nor MSBuild include Microsoft.WindowsDesktop.App in
+    //their *.runtimeconfig.json and this can't be changed at runtime, so we
+    //need manuall assembly resolution to support all types of assemblies for TlbExport.
+    //https://learn.microsoft.com/en-us/dotnet/core/dependency-loading/default-probing
+    //https://learn.microsoft.com/en-us/dotnet/core/runtime-config/
+    private sealed class WindowsDesktopAssemblyLoadContext : AssemblyLoadContext, IDisposable
+    {
+        private readonly TaskLoggingHelper _log;
+        private readonly string _windowsDesktopDir;
+        private readonly ContextualReflectionScope _scope;
+        public WindowsDesktopAssemblyLoadContext(TaskLoggingHelper log) : base("other-tfm-load-ctx", true)
+        {
+            _log = log;
+            _log.LogMessage($"Task is running on {RuntimeInformation.RuntimeIdentifier}");
+            var runtimeDir = RuntimeEnvironment.GetRuntimeDirectory();
+            var runtimeVersion = Version.Parse(RuntimeEnvironment.GetSystemVersion().TrimStart('v'));
+            _windowsDesktopDir = Path.Combine(runtimeDir, @$"..\..\Microsoft.WindowsDesktop.App\{runtimeVersion}");
+            _windowsDesktopDir = Path.GetFullPath(_windowsDesktopDir);
+            if (!Directory.Exists(_windowsDesktopDir))
+            {
+                throw new InvalidOperationException("This task can only run with Microsoft.WindowsDesktop.App runtime installed.");
+            }
+            Resolving += ResolveWindowsDesktopAssembly;
+            Default.Resolving += DefaultResolveWindowsDesktopAssembly;
+            _scope = EnterContextualReflection();
+        }
+
+        private Assembly? DefaultResolveWindowsDesktopAssembly(AssemblyLoadContext context, AssemblyName assemblyName)
+        {
+            return ResolveWindowsDesktopAssembly(this, assemblyName, true);
+        }
+
+        private static Assembly? ResolveWindowsDesktopAssembly(AssemblyLoadContext context, AssemblyName assemblyName)
+        {
+            return ResolveWindowsDesktopAssembly(context, assemblyName, false);
+        }
+
+        private static Assembly? ResolveWindowsDesktopAssembly(AssemblyLoadContext context, AssemblyName assemblyName, bool loadFromDefault)
+        {
+            var self = (WindowsDesktopAssemblyLoadContext)context;
+            var requestedAssemblyName = new AssemblyName(AppDomain.CurrentDomain.ApplyPolicy(assemblyName.FullName));
+            var assemblyPath = Path.Combine(self._windowsDesktopDir, requestedAssemblyName.Name + ".dll");
+            if (requestedAssemblyName.Name!.EndsWith(".resources", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrEmpty(requestedAssemblyName.CultureName))
+            {
+                assemblyPath = Path.Combine(self._windowsDesktopDir, requestedAssemblyName.CultureInfo!.Name, requestedAssemblyName.Name + ".dll");
+            }
+            if (!File.Exists(assemblyPath))
+            {
+                return null;
+            }
+            var nameFromPath = GetAssemblyName(assemblyPath);
+            if (requestedAssemblyName.FullName == nameFromPath.FullName ||
+                PartialAssemblyNameEquals(requestedAssemblyName, nameFromPath))
+            {
+                // There was a breaking change in .NET 7 which does not allow returning
+                // assemblies from different AssemblyLoadContext when IsCollectible is different too.
+                //https://learn.microsoft.com/en-us/dotnet/core/compatibility/core-libraries/7.0/collectible-assemblies
+                if (loadFromDefault)
+                {
+                    return Default.LoadFromAssemblyPath(assemblyPath);
+                }
+                return self.LoadFromAssemblyPath(assemblyPath);
+            }
+            //No need to do Default.LoadFromAssemblyName(assemblyName) here, because
+            //this handler runs only after default AssemblyLoadContext already tried resulution.
+            self._log.LogWarning("The assembly \"{0}\" can't be resolved from Microsoft.WindowsDesktop.App runtime or default paths.", assemblyName.FullName);
+            return null;
+        }
+
+        private static bool PartialAssemblyNameEquals(AssemblyName requested, AssemblyName found)
+        {
+            if (requested.Name != found.Name || requested.CultureName != found.CultureName)
+            {
+                return false;
+            }
+
+            if (requested.Version is not null && requested.Version != new Version(0, 0, 0, 0)
+                && requested.Version != found.Version)
+            {
+                return false;
+            }
+
+            ReadOnlySpan<byte> pkt = requested.GetPublicKeyToken();
+            if (!pkt.SequenceEqual(found.GetPublicKeyToken()))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        public void Dispose()
+        {
+            Default.Resolving -= DefaultResolveWindowsDesktopAssembly;
+            Resolving -= ResolveWindowsDesktopAssembly;
+            _scope.Dispose();
+            Unload();
+        }
+    }
+#endif
+
     /// <summary>
     /// The build context applied to this instance.
     /// </summary>
@@ -103,6 +209,10 @@ public sealed class TlbExport : Microsoft.Build.Utilities.Task
     /// <inheritdoc cref="Microsoft.Build.Utilities.Task.Execute()" />
     public override bool Execute()
     {
+#if NET5_0_OR_GREATER
+        using var windowsDesktopLoadCtx = new WindowsDesktopAssemblyLoadContext(Log);
+#endif
+
         var targetAssemblyFile = GetTargetRuntimeAssembly();
 
         // if the assembly is found next to this assembly
