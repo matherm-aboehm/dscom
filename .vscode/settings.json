@@ -1,14 +1,47 @@
 {
     "dotnet-test-explorer.testProjectPath": "src\\dscom.test\\dscom.test.csproj",
+    "testExplorer.useNativeTesting": true,
     "editor.quickSuggestions": {
-        "comments": "on",
-        "strings": "on",
+        "comments": "inline",
+        "strings": "inline",
         "other": "on"
     },
+    "editor.acceptSuggestionOnEnter": "on",
     "editor.suggestOnTriggerCharacters": true,
     "editor.codeActionsOnSave": {
         "source.organizeImports": "explicit"
     },
     "omnisharp.enableRoslynAnalyzers": true,
     "omnisharp.enableEditorConfigSupport": true,
+    "omnisharp.loggingLevel": "debug",
+    "csharp.showOmnisharpLogOnError": true,
+    "dotnet.server.trace": "Information",
+    "csharp.debug.justMyCode": false,
+    "csharp.debug.enableStepFiltering": false,
+    "csharp.debug.suppressJITOptimizations": true,
+    "csharp.debug.symbolOptions.cachePath": "D:\\Symbols",
+    "csharp.debug.symbolOptions.searchMicrosoftSymbolServer": true,
+    "csharp.debug.symbolOptions.searchNuGetOrgSymbolServer": true,
+    "csharp.debug.symbolOptions.searchPaths": [
+        "D:\\RefSrc\\Symbols\\",
+        "C:\\WINDOWS\\symbols\\",
+        "D:\\Source.Net48\\",
+        "D:\\Source.Net48_32\\",
+        "\\\\KRONOS\\System\\Install\\MathermSoftware\\Symbols",
+        "D:\\temp\\pdbs\\portable",
+        "http://referencesource.microsoft.com/symbols"
+    ],
+    "csharp.debug.symbolOptions.moduleFilter.mode": "loadAllButExcluded",
+    "editor.hover.sticky": true,
+    "git.useEditorAsCommitInput": true,
+    "coverage-gutters.coverageFileNames": [
+        "lcov.*.info",
+    ],
+    "coverage-gutters.showLineCoverage": true,
+    "coverage-gutters.showGutterCoverage": false,
+    "coverage-gutters.coverageReportFileName": "covstats/**/index.html",
+    "powershell.scriptAnalysis.settingsPath": ".vscode/PSScriptAnalyzerSettings.psd1",
+    "dotnet.formatting.organizeImportsOnFormat": true,
+    "gitlens.rebaseEditor.openOnPausedRebase": "interactive",
+    "gitlens.plusFeatures.enabled": false
 }

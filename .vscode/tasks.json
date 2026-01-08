@@ -14,13 +14,34 @@
             "problemMatcher": "$msCompile"
         },
         {
+            "label": "build release",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "build",
+                "${workspaceFolder}/src/dscom.client/dscom.client.csproj",
+                "/property:Configuration=Release",
+                "/property:GenerateFullPaths=true",
+                "/consoleloggerparameters:NoSummary"
+            ],
+            "problemMatcher": "$msCompile"
+        },
+        {
             "label": "publish",
             "command": "dotnet",
             "type": "process",
             "args": [
                 "publish",
                 "${workspaceFolder}/src/dscom.client/dscom.client.csproj",
+                "--no-self-contained",
+                "-c",
+                "Release",
                 "/property:GenerateFullPaths=true",
+                "/property:PublishSingleFile=true",
+                "-r",
+                "win-x64",
+                "-f",
+                "net6.0",
                 "/consoleloggerparameters:NoSummary"
             ],
             "problemMatcher": "$msCompile"
@@ -44,6 +65,52 @@
             "type": "shell",
             "args": [],
             "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "Check code format (editorconfig)",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "format",
+                "--verify-no-changes"
+            ],
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "test with code coverage",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "test",
+                "/property:GenerateFullPaths=true",
+                "/property:CollectCoverage=true",
+                "/property:CoverletOutputFormat=lcov",
+                "/property:CoverletOutput=lcov.info",
+                "--",
+                "RunConfiguration.DisableAppDomain=true"
+            ],
+            "problemMatcher": "$msCompile",
+            "detail": "for last 2 options, see known issues list here: https://github.com/coverlet-coverage/coverlet/blob/master/Documentation/KnownIssues.md#5-tests-fail-if-assembly-is-strong-named"
+        },
+        {
+            "label": "Generate coverage stats",
+            "command": "reportgenerator",
+            "type": "shell",
+            "args": [
+                "-reports:${workspaceFolder}/src/dscom.test/lcov.*.info",
+                "-targetdir:${workspaceFolder}/covstats"
+            ],
+            "problemMatcher": [],
+            "dependsOn": "test with code coverage"
+        },
+        {
+            "label": "Shutdown dotnet build-server",
+            "type": "shell",
+            "runOptions": {
+                "instanceLimit": 1,
+                "runOn": "default"
+            },
+            "command": "dotnet build-server shutdown"
         }
     ]
 }
