@@ -2,7 +2,8 @@
   "recommendations": [
     "ms-dotnettools.csharp",
     "ms-dotnettools.csdevkit",
-    "editorconfig.editorconfig",
-    "davidanson.vscode-markdownlint"
+    "spacegray.editorconfig-dev",
+    "davidanson.vscode-markdownlint",
+    "techtile.terminal-automation"
   ]
 }

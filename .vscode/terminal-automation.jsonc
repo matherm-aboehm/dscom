@@ -1,0 +1,14 @@
+{
+    "open": [
+        {
+            "name": "pwsh"
+        },
+        {
+            "name": "Shutdown dotnet build-server",
+            "command": ". ./.vscode/hookup_exit.ps1"
+        }
+    ],
+    "close": [
+        "killall"
+    ]
+}
