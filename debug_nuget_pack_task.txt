@@ -1,0 +1,4 @@
+    <!--PackageReference Include="NuGet.Build.Tasks.Pack" Version="6.10.2-zlocal.32767">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference-->
