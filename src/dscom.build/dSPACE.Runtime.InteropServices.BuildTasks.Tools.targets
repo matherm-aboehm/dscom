@@ -89,11 +89,14 @@
           AfterTargets="DsComExportTypeLibraryAfterBuild" 
           Inputs="$(_DsComExportTypeLibraryTargetFile)"
           Outputs="$(_DsComExportTypeLibraryAssemblyFile)"
-          Condition="$(DsComTypeLibraryEmbedAfterBuild) AND '$(_DsComToolsFileDir)' != ''">
+          Condition="'$(DsComTypeLibraryEmbedAfterBuild)' == 'explicit' AND '$(_DsComToolsFileDir)' != ''">
     <PropertyGroup>
       <_DsComArguments>tlbembed</_DsComArguments>
       <_DsComArguments> $(_DsComArguments) "$(_DsComExportTypeLibraryTargetFile)"</_DsComArguments>
-      <_DsComArguments> $(_DsComArguments) "$(_DsComExportTypeLibraryAssemblyFile)"</_DsComArguments>
+      <!-- Handles .NET 4.8 which would be embedded into the same output assembly -->
+      <_DsComArguments Condition="$(ComHostIntermediatePath) == ''"> $(_DsComArguments) "$(_DsComExportTypeLibraryAssemblyFile)"</_DsComArguments>
+      <!-- Handles .NET 5+ which would be embedded into the generated comhost DLL -->
+      <_DsComArguments Condition="$(ComHostIntermediatePath) != ''"> $(_DsComArguments) "$(ComHostIntermediatePath)"</_DsComArguments>
       <_DsComWorkingDir>$(OutDir)</_DsComWorkingDir> 
       <_DsComWorkingDir Condition="$(_DsComWorkingDir) == ''">$(OutputPath)</_DsComWorkingDir> 
     </PropertyGroup>
