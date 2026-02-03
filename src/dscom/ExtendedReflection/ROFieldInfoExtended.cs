@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace dSPACE.Runtime.InteropServices;
 
@@ -30,17 +31,33 @@ internal sealed class ROFieldInfoExtended : FieldInfo
     public override string Name => _roFieldInfo.Name;
     public override Type? ReflectedType => _roTypeExtended;
 
+    private MarshalAsAttribute? ComputeMarshalAsAttribute()
+    {
+        if ((_roFieldInfo.Attributes & FieldAttributes.HasFieldMarshal) == 0)
+        {
+            return null;
+        }
+        else if (_roTypeExtended.Module is ROModuleExtended roModuleEx)
+        {
+            return roModuleEx.ComputeMarshalAsAttribute(MetadataToken);
+        }
+
+        throw new NotSupportedException($"{nameof(_roTypeExtended.Module)} must be from reflection-only load context.");
+    }
+
     public override IList<CustomAttributeData> GetCustomAttributesData()
         => _roFieldInfo.GetCustomAttributesData();
 
     public override object[] GetCustomAttributes(bool inherit)
-        => GetCustomAttributesData().GetCustomAttributes();
+        => GetCustomAttributesData().GetCustomAttributes(ComputeMarshalAsAttribute);
 
     public override object[] GetCustomAttributes(Type attributeType, bool inherit)
-        => GetCustomAttributesData().GetCustomAttributes(attributeType);
+        => GetCustomAttributesData().GetCustomAttributes(attributeType, ComputeMarshalAsAttribute);
 
     public override bool IsDefined(Type attributeType, bool inherit)
-        => GetCustomAttributesData().IsDefined(attributeType);
+        => (attributeType.Equals(typeof(MarshalAsAttribute)) &&
+            (Attributes & FieldAttributes.HasFieldMarshal) != 0) ||
+            GetCustomAttributesData().IsDefined(attributeType);
 
     public override object? GetValue(object? obj)
         => _roFieldInfo.GetValue(obj);
