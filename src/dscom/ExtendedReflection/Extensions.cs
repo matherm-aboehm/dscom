@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace dSPACE.Runtime.InteropServices;
 
@@ -246,7 +247,7 @@ internal static partial class Extensions
         }
     }
 
-    public static object[] GetCustomAttributes(this IList<CustomAttributeData> attrData)
+    public static object[] GetCustomAttributes(this IList<CustomAttributeData> attrData, Func<MarshalAsAttribute?>? getMarshalAs = null)
     {
         List<Attribute> result = new(attrData.Count);
         foreach (var ad in attrData)
@@ -275,21 +276,30 @@ internal static partial class Extensions
             }
             result.Add(attrObj);
         }
+
+        var marshalAs = getMarshalAs?.Invoke();
+        if (marshalAs is not null)
+        {
+            result.Add(marshalAs);
+        }
         return result.ToArray();
     }
 
-    public static object[] GetCustomAttributes(this IList<CustomAttributeData> attrData, Type attributeType)
+    public static object[] GetCustomAttributes(this IList<CustomAttributeData> attrData, Type attributeType, Func<MarshalAsAttribute?>? getMarshalAs = null)
     {
         List<Attribute> resultList = new(attrData.Count);
         foreach (var ad in attrData.Where(ad => attributeType.IsAssignableFromReflectionOnly(ad.AttributeType)))
         {
+            var rtAttrType = EqualsToRuntimeType(ad.AttributeType, attributeType) ?
+                attributeType : (ad.AttributeType.ToRuntimeType()
+                ?? throw new InvalidOperationException($"Can't create an instance of reflection-only type {ad.AttributeType}"));
             var ctorArgs = ad.ConstructorArguments.Select(arg => arg.ToRuntimeTypedValue()).ToArray();
-            var attrObj = (Attribute?)Activator.CreateInstance(attributeType, ctorArgs)
-                ?? throw new InvalidOperationException($"Can't create an instance of {attributeType}");
+            var attrObj = (Attribute?)Activator.CreateInstance(rtAttrType, ctorArgs)
+                ?? throw new InvalidOperationException($"Can't create an instance of {rtAttrType}");
             foreach (var namedArg in ad.NamedArguments)
             {
                 MemberInfo? fieldOrProperty = namedArg.IsField ?
-                    attributeType.GetField(namedArg.MemberName) : attributeType.GetProperty(namedArg.MemberName);
+                    rtAttrType.GetField(namedArg.MemberName) : rtAttrType.GetProperty(namedArg.MemberName);
                 if (fieldOrProperty is FieldInfo field)
                 {
                     field.SetValue(attrObj, namedArg.TypedValue.ToRuntimeTypedValue());
@@ -300,10 +310,19 @@ internal static partial class Extensions
                 }
                 else
                 {
-                    throw new InvalidOperationException($"Can't find public {(namedArg.IsField ? "field" : "property")} \"{namedArg.MemberName}\" in {attributeType}");
+                    throw new InvalidOperationException($"Can't find public {(namedArg.IsField ? "field" : "property")} \"{namedArg.MemberName}\" in {rtAttrType}");
                 }
             }
             resultList.Add(attrObj);
+        }
+
+        if (attributeType.Equals(typeof(MarshalAsAttribute)))
+        {
+            var marshalAs = getMarshalAs?.Invoke();
+            if (marshalAs is not null)
+            {
+                resultList.Add(marshalAs);
+            }
         }
         var result = (Attribute[])Array.CreateInstance(attributeType, resultList.Count);
         resultList.CopyTo(result);
