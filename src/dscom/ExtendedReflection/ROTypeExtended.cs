@@ -263,13 +263,26 @@ internal sealed class ROTypeExtended : Type
 
     protected override MethodInfo? GetMethodImpl(string name, BindingFlags bindingAttr, Binder? binder, CallingConventions callConvention, Type[]? types, ParameterModifier[]? modifiers)
     {
-        var mi = _roType.GetMethod(name, bindingAttr, binder, callConvention, types ?? EmptyTypes, modifiers);
+        // The implementation GetMethodImpl of the reflection-only type class respects nullability of
+        // the "types" paremeter, where the public APIs declares it as non-null and also checks the
+        // parameter. So different overload must be called when null should be passed to the reflection-
+        // only GetMethodImpl.
+        // Check default values for the other paremeters to detect this situation if the
+        // GetMethod(string, BindingFlags) overload was called and so be redirected to the same
+        // on the reflection-only type object.
+        // If any of these parameters are not in their default value, use the other overload,
+        // even when this means a null for "types" parameter gets translated to Type.EmptyTypes,
+        // so only method with no parameters would be found then.
+        var mi = binder is null && callConvention == CallingConventions.Any && types is null && modifiers is null ?
+            _roType.GetMethod(name, bindingAttr) : _roType.GetMethod(name, bindingAttr, binder, callConvention, types ?? EmptyTypes, modifiers);
         return mi is null ? null : new ROMethodInfoExtended(this, mi);
     }
 
     protected override PropertyInfo? GetPropertyImpl(string name, BindingFlags bindingAttr, Binder? binder, Type? returnType, Type[]? types, ParameterModifier[]? modifiers)
     {
-        var pi = _roType.GetProperty(name, bindingAttr, binder, returnType, types ?? EmptyTypes, modifiers);
+        // Same as above with GetMethodImpl
+        var pi = binder is null && returnType is null && types is null && modifiers is null ?
+            _roType.GetProperty(name, bindingAttr) : _roType.GetProperty(name, bindingAttr, binder, returnType, types ?? EmptyTypes, modifiers);
         return pi is null ? null : new ROPropertyInfoExtended(this, pi);
     }
 

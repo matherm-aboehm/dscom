@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace dSPACE.Runtime.InteropServices;
 
@@ -58,12 +59,27 @@ internal sealed class ROParameterInfoExtended : ParameterInfo
     public override int Position => _roParameterInfo.Position;
     public override object? RawDefaultValue => _roParameterInfo.RawDefaultValue;
 
+    private MarshalAsAttribute? ComputeMarshalAsAttribute()
+    {
+        if ((_roParameterInfo.Attributes & ParameterAttributes.HasFieldMarshal) == 0)
+        {
+            return null;
+        }
+        else if (_roAssemblyExtended.ManifestModule is ROModuleExtended roModuleEx)
+        {
+            return roModuleEx.ComputeMarshalAsAttribute(MetadataToken);
+        }
+        throw new NotSupportedException($"{nameof(_roAssemblyExtended.ManifestModule)} must be from reflection-only load context.");
+    }
+
     public override IList<CustomAttributeData> GetCustomAttributesData()
         => _roParameterInfo.GetCustomAttributesData();
 
     public override object[] GetCustomAttributes(bool inherit)
     {
-        var result = GetCustomAttributesData().GetCustomAttributes();
+        var result = GetCustomAttributesData().GetCustomAttributes(
+            (Attributes & ParameterAttributes.HasFieldMarshal) != 0 ?
+            ComputeMarshalAsAttribute : null);
         if (inherit)
         {
             List<Attribute> resultList = new((Attribute[])result);
@@ -80,8 +96,10 @@ internal sealed class ROParameterInfoExtended : ParameterInfo
     }
     public override object[] GetCustomAttributes(Type attributeType, bool inherit)
     {
-        var result = GetCustomAttributesData().GetCustomAttributes(attributeType);
-        if (!inherit ||
+        var result = GetCustomAttributesData().GetCustomAttributes(attributeType, ComputeMarshalAsAttribute);
+        // don't need to check usage attributes for MarshalAsAttribute,
+        // it should be Inherited = false and AllowMultiple = false
+        if (attributeType.Equals(typeof(MarshalAsAttribute)) || !inherit ||
             (attributeType.GetCustomAttribute<AttributeUsageAttribute>() is var attrUsage &&
             (attrUsage is { Inherited: false } ||
             (attrUsage is null or { Inherited: true, AllowMultiple: false } && result.Length != 0))))
@@ -106,6 +124,11 @@ internal sealed class ROParameterInfoExtended : ParameterInfo
     }
     public override bool IsDefined(Type attributeType, bool inherit)
     {
+        if (attributeType.Equals(typeof(MarshalAsAttribute)) &&
+            (Attributes & ParameterAttributes.HasFieldMarshal) != 0)
+        {
+            return true;
+        }
         var result = GetCustomAttributesData().IsDefined(attributeType);
         if (result || !inherit ||
             attributeType.GetCustomAttribute<AttributeUsageAttribute>() is { Inherited: false })
