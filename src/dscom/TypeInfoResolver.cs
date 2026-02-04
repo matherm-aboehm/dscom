@@ -15,6 +15,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
+using dSPACE.Runtime.InteropServices.Exporter;
 
 namespace dSPACE.Runtime.InteropServices;
 
@@ -25,6 +26,8 @@ internal sealed class TypeInfoResolver : ITypeLibCache
     private readonly List<string> _additionalLibs = new();
 
     private readonly Dictionary<Guid, ITypeInfo> _types = new();
+
+    private readonly Dictionary<TypeLibIdentifier, IDictionary<string, ITypeInfo>> _nameOnlyTypes = new();
 
     private readonly Dictionary<Type, ITypeInfo?> _resolvedTypeInfos = new();
 
@@ -73,6 +76,16 @@ internal sealed class TypeInfoResolver : ITypeLibCache
         return typeInfo;
     }
 
+    public ITypeInfo? ResolveTypeInfo(in TypeLibIdentifier identifier, string name)
+    {
+        if (_nameOnlyTypes.TryGetValue(identifier, out var nameOnlyTypesFromLib))
+        {
+            nameOnlyTypesFromLib.TryGetValue(name, out var typeInfo);
+            return typeInfo;
+        }
+        return null;
+    }
+
     /// <summary>
     /// Resolve the <see cref="ITypeInfo"/> by a <see cref="Guid"/>. If the <see cref="ITypeInfo"/> is not
     /// present yet, it will try to add the type library for the corresponding assembly.
@@ -87,6 +100,27 @@ internal sealed class TypeInfoResolver : ITypeLibCache
         }
 
         var assembly = type.Assembly;
+
+        if ((assembly.ReflectionOnly && type.GUID == Guid.Empty) ||
+            (!assembly.ReflectionOnly && type.IsDefined(typeof(GuidAttribute), false)))
+        {
+            var identifierOle = new TypeLibIdentifier()
+            {
+                Name = type.Name,
+                LanguageIdentifier = Constants.LCID_NEUTRAL,
+                LibID = new Guid(Guids.TLBID_Ole),
+                MajorVersion = 2,
+                MinorVersion = 0
+            };
+
+            typeInfo = ResolveTypeInfo(identifierOle, type.Name);
+            if (typeInfo is not null)
+            {
+                var oleType = new TypeInfo((ITypeInfo2)typeInfo, null, nameof(typeInfo));
+                //TODO: check similarity of COM type and managed type before returning
+                return typeInfo;
+            }
+        }
 
         // check if the type library is already present
         var assemblyLocation = string.IsNullOrEmpty(assembly.Location) ?
@@ -198,8 +232,7 @@ internal sealed class TypeInfoResolver : ITypeLibCache
                 MajorVersion = 2,
                 MinorVersion = 0
             };
-            var typeLibOle = GetTypeLibFromIdentifier(identifierOle) ?? throw new COMException("System.Guid not found in any type library");
-            typeLibOle.GetTypeInfo(0, out retval);
+            retval = ResolveTypeInfo(identifierOle, "GUID") ?? throw new COMException("System.Guid not found in any type library");
         }
         else if (type.GUID == new Guid(Guids.IID_IDispatch))
         {
@@ -274,6 +307,29 @@ internal sealed class TypeInfoResolver : ITypeLibCache
     {
         _typeLibs.TryGetValue(identifier, out var value);
         return value;
+    }
+
+    public static TypeLibIdentifier GetIdentifierFromTypeLib(ITypeLib typeLib)
+    {
+        typeLib.GetLibAttr(out var libattrPtr);
+        try
+        {
+            var libattr = Marshal.PtrToStructure<TYPELIBATTR>(libattrPtr);
+            typeLib.GetDocumentation(-1, out var name, out var strDocString, out var dwHelpContext, out var strHelpFile);
+            var identifier = new TypeLibIdentifier
+            {
+                Name = name,
+                LanguageIdentifier = libattr.lcid,
+                LibID = libattr.guid,
+                MajorVersion = (ushort)libattr.wMajorVerNum,
+                MinorVersion = (ushort)libattr.wMinorVerNum
+            };
+            return identifier;
+        }
+        finally
+        {
+            typeLib.ReleaseTLibAttr(libattrPtr);
+        }
     }
 
     public ITypeLib? LoadTypeLibFromIdentifier(in TypeLibIdentifier identifier, bool throwOnError = true)
@@ -363,51 +419,37 @@ internal sealed class TypeInfoResolver : ITypeLibCache
         var typeLib = LoadTypeLibFromIdentifier(identifier)!;
 
         _typeLibs.Add(identifier, typeLib);
-        UpdateTypeLibCache(typeLib);
+        UpdateTypeLibCache(identifier, typeLib);
     }
 
     public bool AddTypeLib(ITypeLib typeLib)
     {
-        var retValue = false;
-        typeLib.GetLibAttr(out var libattrPtr);
-        try
-        {
-            var libattr = Marshal.PtrToStructure<TYPELIBATTR>(libattrPtr);
-            typeLib.GetDocumentation(-1, out var name, out var strDocString, out var dwHelpContext, out var strHelpFile);
-            var identifier = new TypeLibIdentifier
-            {
-                Name = name,
-                LanguageIdentifier = libattr.lcid,
-                LibID = libattr.guid,
-                MajorVersion = (ushort)libattr.wMajorVerNum,
-                MinorVersion = (ushort)libattr.wMinorVerNum
-            };
-
-            if (!_typeLibs.ContainsKey(identifier))
-            {
-                _typeLibs.Add(identifier, typeLib);
-                UpdateTypeLibCache(typeLib);
-                retValue = true;
-            }
-        }
-        finally
-        {
-            typeLib.ReleaseTLibAttr(libattrPtr);
-        }
-        return retValue;
+        var identifier = GetIdentifierFromTypeLib(typeLib);
+        return AddTypeLib(typeLib, identifier);
     }
 
-    private void UpdateTypeLibCache(ITypeLib typelib)
+    public bool AddTypeLib(ITypeLib typeLib, in TypeLibIdentifier identifier)
+    {
+        if (!_typeLibs.ContainsKey(identifier))
+        {
+            _typeLibs.Add(identifier, typeLib);
+            UpdateTypeLibCache(identifier, typeLib);
+            return true;
+        }
+        return false;
+    }
+
+    private void UpdateTypeLibCache(in TypeLibIdentifier identifier, ITypeLib typelib)
     {
         var count = typelib.GetTypeInfoCount();
         for (var i = 0; i < count; i++)
         {
             typelib.GetTypeInfo(i, out var typeInfo);
-            AddTypeToCache(typeInfo);
+            AddTypeToCache(typeInfo, identifier);
         }
     }
 
-    public void AddTypeToCache(ITypeInfo? typeInfo)
+    public void AddTypeToCache(ITypeInfo? typeInfo, in TypeLibIdentifier? identifier = null)
     {
         if (typeInfo != null)
         {
@@ -415,7 +457,24 @@ internal sealed class TypeInfoResolver : ITypeLibCache
             try
             {
                 var attr = Marshal.PtrToStructure<TYPEATTR>(ppTypAttr);
-                if (!_types.ContainsKey(attr.guid))
+                if (attr.guid == Guid.Empty)
+                {
+                    typeInfo.GetDocumentation(-1, out var name, out _, out _, out _);
+                    if (identifier is null)
+                    {
+                        WriterContext.LogWarning($"Warning: No GUID was defined for the type {name}. The cache to resolve type infos, can't be updated.");
+                        return;
+                    }
+                    if (!_nameOnlyTypes.TryGetValue(identifier.Value, out var nameOnlyTypesFromLib))
+                    {
+                        _nameOnlyTypes.Add(identifier.Value, nameOnlyTypesFromLib = new Dictionary<string, ITypeInfo>());
+                    }
+                    if (!nameOnlyTypesFromLib.ContainsKey(name))
+                    {
+                        nameOnlyTypesFromLib.Add(name, typeInfo);
+                    }
+                }
+                else if (!_types.ContainsKey(attr.guid))
                 {
                     _types[attr.guid] = typeInfo;
                 }
