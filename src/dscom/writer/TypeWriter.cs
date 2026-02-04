@@ -117,7 +117,7 @@ internal abstract class TypeWriter : BaseWriter
         }
 
         // Store each type in a cache
-        Context.TypeInfoResolver.AddTypeToCache(TypeInfo as ITypeInfo);
+        Context.TypeInfoResolver.AddTypeToCache(TypeInfo as ITypeInfo, LibraryWriter.Identifier);
     }
 
     protected virtual Guid GetTypeGuid()

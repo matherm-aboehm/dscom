@@ -67,6 +67,8 @@ internal sealed class LibraryWriter : BaseWriter
 
     private Dictionary<string, object> UniqueNames { get; } = new();
 
+    public TypeLibIdentifier Identifier { get; private set; }
+
     public override void Create()
     {
         var name = string.IsNullOrEmpty(Context.Options.OverrideName)
@@ -95,7 +97,8 @@ internal sealed class LibraryWriter : BaseWriter
                 typeLib.SetDocString(description);
             }
 
-            Context.TypeInfoResolver.AddTypeLib((ITypeLib)typeLib);
+            Identifier = TypeInfoResolver.GetIdentifierFromTypeLib((ITypeLib)typeLib);
+            Context.TypeInfoResolver.AddTypeLib((ITypeLib)typeLib, Identifier);
 
             if (!string.IsNullOrEmpty(Context.Options.Out))
             {
