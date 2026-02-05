@@ -9,6 +9,7 @@ namespace dSPACE.Runtime.InteropServices;
 
 internal sealed class ROTypeExtended : Type
 {
+    internal static Dictionary<(string? asmName, int mdToken), Guid>? s_overrideGuids;
     internal readonly ROAssemblyExtended _roAssemblyExtended;
     internal readonly Type _roType;
     private ROTypeExtended? _roBaseType;
@@ -38,7 +39,9 @@ internal sealed class ROTypeExtended : Type
     public override Type? DeclaringType => _roType.DeclaringType is null ? null :
         (_roDeclaringType ??= new ROTypeExtended(_roAssemblyExtended, _roType.DeclaringType));
     public override string? FullName => _roType.FullName;
-    public override Guid GUID => _roType.GUID;
+    public override Guid GUID => s_overrideGuids != null &&
+        s_overrideGuids.TryGetValue((_roAssemblyExtended.FullName, _roType.MetadataToken), out var guid) ?
+        guid : _roType.GUID;
     public override int MetadataToken => _roType.MetadataToken;
     public override Module Module => _roModuleExtended ??=
         (_roAssemblyExtended._roAssembly.ManifestModule == _roType.Module) ?
@@ -233,6 +236,13 @@ internal sealed class ROTypeExtended : Type
     {
         var pi = _roType.GetProperty(name, bindingAttr, binder, returnType, types ?? EmptyTypes, modifiers);
         return pi is null ? null : new ROPropertyInfoExtended(this, pi);
+    }
+
+    public void OverrideGUID(Guid guid)
+    {
+        s_overrideGuids ??= new();
+        var key = (_roAssemblyExtended.FullName, _roType.MetadataToken);
+        s_overrideGuids[key] = guid;
     }
 
     #region Object overrides
