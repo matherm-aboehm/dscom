@@ -15,6 +15,7 @@
 #pragma warning disable 612, 618
 
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -23,6 +24,36 @@ namespace dSPACE.Runtime.InteropServices.Writer;
 
 internal sealed class LibraryWriter : BaseWriter
 {
+    [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
+    private static readonly Guid IID_IInternetSecurityManager = new("79eac9ee-baf9-11ce-8c82-00aa004ba90b");
+
+    [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
+    private static readonly Guid IID_IInternetSecurityMgrSite = new("79eac9ed-baf9-11ce-8c82-00aa004ba90b");
+
+    [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
+    private static readonly Guid IID_IObjectArray = new("92ca9dcd-5622-4bba-a805-5e9f541bd8c9");
+
+    [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
+    private static readonly Guid IID_IObjectCollection = new("5632b1a4-e38a-400a-928a-d4cd63230295");
+
+    [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
+    private static readonly Guid IID_ITaskbarList3 = new("ea1afb91-9e28-4b86-90e9-9e9f8a5eefaf");
+
+    [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
+    private static readonly Guid IID_ITaskbarList4 = new("c43dc798-95d1-4bea-9030-bb99e2983a1a");
+
+    [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
+    private static readonly Guid IID_IPersistStream = new("00000109-0000-0000-C000-000000000046");
+
+    [SuppressMessage("Microsoft.Style", "IDE1006", Justification = "")]
+    private static readonly Dictionary<Guid, (string, Guid?)> GuidOverrideFixupTable = new()
+    {
+        {IID_IInternetSecurityManager, ("IInternetSecurityMgrSite", IID_IInternetSecurityMgrSite)},
+        {IID_IObjectArray, ("IObjectCollection", IID_IObjectCollection)},
+        {IID_ITaskbarList3, ("ITaskbarList4", IID_ITaskbarList4)},
+        {IID_IPersistStream, ("IPersistStreamWithArrays", null)}, // null for overrideGuid means skip instead of override
+    };
+
     public LibraryWriter(Assembly assembly, WriterContext context) : base(context)
     {
         Assembly = assembly;
@@ -31,6 +62,8 @@ internal sealed class LibraryWriter : BaseWriter
     private Assembly Assembly { get; }
 
     private List<TypeWriter> TypeWriters { get; } = new();
+
+    private Dictionary<Guid, (Type type, TypeWriter writer)> TypeWritersForComImport { get; } = new();
 
     private Dictionary<string, object> UniqueNames { get; } = new();
 
@@ -101,6 +134,7 @@ internal sealed class LibraryWriter : BaseWriter
 
         foreach (var type in types)
         {
+            var isImport = false;
             // If it is ComImport or WindowsRuntimeImport, skip other checks.
             if (type.IsImport || type.IsProjectedFromWinRT())
             {
@@ -109,6 +143,32 @@ internal sealed class LibraryWriter : BaseWriter
                     //TODO: Implement an IDL Parser and use IDL files from Windows SDK
                     // to write correct type infos to the TLB
                     if (Context.TypeInfoResolver.ResolveTypeInfo(type.GUID) is ITypeInfo2 typeInfo)
+                    {
+                        continue;
+                    }
+                    isImport = true;
+                    var skip = false;
+                    while (TypeWritersForComImport.TryGetValue(type.GUID, out var otherTypeWriter))
+                    {
+                        //Filter out class interfaces from TLB import like in PresentationFramework:
+                        //System.Windows.Documents.MsSpellCheckLib.RCW+SpellCheckerFactoryClass
+                        //System.Windows.Documents.MsSpellCheckLib.RCW+ISpellCheckerFactory
+                        if (type.IsDefined(typeof(CoClassAttribute)) && !otherTypeWriter.type.IsDefined(typeof(CoClassAttribute)))
+                        {
+                            break;
+                        }
+
+                        if (SkipImportTypeOrOverrideGuid(type, otherTypeWriter.type, otherTypeWriter.writer))
+                        {
+                            skip = true;
+                            break;
+                        }
+                        // If GUID was overridden on current type then
+                        // try again to find duplicates with new GUID.
+                        // If GUID was overridden on other type then it
+                        // will break out of loop when next lookup fails.
+                    }
+                    if (skip)
                     {
                         continue;
                     }
@@ -198,8 +258,24 @@ internal sealed class LibraryWriter : BaseWriter
                         // was visited first and there are other conditions to enable
                         // the creation than what is checked here, we would need to
                         // dispose and remove that writer.
-                        // But for now, that the conditions are the same for enablement
-                        // Just skip this type for writer creation.
+                        /*if (classInterfaceWriters.TryGetValue(coClass, out var classInterfaceWriter))
+                        {
+                            classInterfaceWriter.Dispose();
+                            classInterfaceWriters.Remove(coClass);
+                        }*/
+                        // But for now, that the conditions are the same for enablement,
+                        // just check, when already visited, if TypeWriter found by GUID
+                        // was created for default interface type instead of other type.
+                        if (TypeWritersForComImport.TryGetValue(defaultInterfaceType.GUID, out var otherTypeWriter)
+                            && !defaultInterfaceType.Equals(otherTypeWriter.type))
+                        {
+                            // should never reach here, it would mean there are multiple interface types which defined the same GUID
+                            // and where none of them are the dummy interface imported by TLB import
+                            throw new InvalidOperationException($"The default interface for the co-class {coClass.FullName} can't be determined, at least 2 types share the same GUID {defaultInterfaceType.GUID}, where {defaultInterfaceType.FullName} is in the interface list from the co-class and {otherTypeWriter.type.FullName} is not.");
+                        }
+                        // If interface type wasn't visited yet or it's the same type as
+                        // found by GUID from current type, then there is currently no
+                        // other dupplicate GUID, so just skip the current type to not change that situation.
                     }
                     else
                     {
@@ -235,6 +311,10 @@ internal sealed class LibraryWriter : BaseWriter
             }
             if (typeWriter != null)
             {
+                if (isImport)
+                {
+                    TypeWritersForComImport.Add(type.GUID, (type, typeWriter));
+                }
 
                 TypeWriters.Add(typeWriter);
             }
@@ -300,6 +380,69 @@ internal sealed class LibraryWriter : BaseWriter
         TypeWriters.AddRange(classInterfaceWriters.Values);
     }
 
+    private bool SkipImportTypeOrOverrideGuid(Type currentType, Type otherType, TypeWriter otherTypeWriter)
+    {
+        var skip = false;
+        string? skipreason = null;
+        // IInternetSecurityMgrSite and IInternetSecurityManager from WindowsBase
+        // have defined the same GUID, which can't be exported to the same TLB,
+        // so override the GUID or filter the wrong type out and continue on.
+        // The correct GUID for IInternetSecurityMgrSite would be
+        // 79eac9ed-baf9-11ce-8c82-00aa004ba90b, see UrlMon.idl in Windows SDK.
+
+        // There are more of these GUID conflicts in .NET BCL, just find the correct
+        // definitions in Windows SDK and add it to the fixup table.
+        if (GuidOverrideFixupTable.TryGetValue(currentType.GUID, out var overrideGuidTuple))
+        {
+            var (typeNameForGuidOverrideOrSkip, overrideGuid) = overrideGuidTuple;
+            if (otherType.Name == typeNameForGuidOverrideOrSkip)
+            {
+                TypeWritersForComImport.Remove(currentType.GUID);
+                if (overrideGuid is not null && otherType is ROTypeExtended roType)
+                {
+                    roType.OverrideGUID(overrideGuid.Value);
+                    TypeWritersForComImport.Add(overrideGuid.Value, (otherType, otherTypeWriter));
+                }
+                else
+                {
+                    otherTypeWriter.Dispose();
+                    TypeWriters.Remove(otherTypeWriter);
+                }
+            }
+            else if (currentType.Name == typeNameForGuidOverrideOrSkip)
+            {
+                if (overrideGuid is not null && currentType is ROTypeExtended roType)
+                {
+                    roType.OverrideGUID(overrideGuid.Value);
+                }
+                else
+                {
+                    skip = true;
+                }
+            }
+            else if (currentType.Name == otherType.Name)
+            {
+                // no warning, as other types may be handled already 
+                skip = true;
+            }
+        }
+        else
+        {
+            skipreason = currentType.Name == otherType.Name
+                ? $"There are ambiguous types with name {currentType.Name} that differs only in namespace ({currentType.Namespace}|{otherType.Namespace}) which both have defined the same GUID {currentType.GUID}."
+                : $"Different types {currentType.FullName} and {otherType.FullName} have defined the same GUID {currentType.GUID}.";
+            skip = true;
+        }
+
+
+        if (skip && skipreason is not null)
+        {
+            Context.LogWarning($"Warning: {skipreason} So both types can't be exported to the same TLB. {currentType.FullName} is skipped.", HRESULT.TYPE_E_DUPLICATEID);
+        }
+
+        return skip;
+    }
+
     private static string GetFullNamespace(Type type)
     {
         StringBuilder namesp = new(type.Namespace);
@@ -360,6 +503,7 @@ internal sealed class LibraryWriter : BaseWriter
         {
             TypeWriters.ForEach(t => t.Dispose());
             TypeWriters.Clear();
+            TypeWritersForComImport.Clear();
         }
 
         base.Dispose(disposing);
